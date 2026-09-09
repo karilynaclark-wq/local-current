@@ -3,6 +3,7 @@
     "name": "Local Current",
     "slug": "current",
     "version": "1.0.1",
+    "scheme": "localcurrent",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -57,7 +58,8 @@
           "color": "#C2623F",
           "sounds": []
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

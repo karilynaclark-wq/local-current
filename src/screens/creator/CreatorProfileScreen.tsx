@@ -8,6 +8,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
+import {
+  getConnections, connectTikTok, syncTikTok, disconnectTikTok,
+  type SocialConnection,
+} from '../../lib/socialConnect';
 
 interface CreatorData {
   full_name: string;
@@ -69,6 +73,52 @@ export default function CreatorProfileScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [selectedCircuit, setSelectedCircuit] = useState<CompletedCircuit | null>(null);
+  const [connections, setConnections] = useState<SocialConnection[]>([]);
+  const [connecting, setConnecting] = useState<string | null>(null);
+
+  const tiktokConn = connections.find(c => c.platform === 'tiktok');
+
+  async function handleConnectTikTok() {
+    setConnecting('tiktok');
+    try {
+      const result = await connectTikTok();
+      if (result === 'success') {
+        setConnections(await getConnections());
+        Alert.alert('Connected', 'Your TikTok account is now linked.');
+      } else if (result === 'error') {
+        Alert.alert('Could not connect', 'TikTok connection failed. Please try again.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setConnecting(null);
+    }
+  }
+
+  async function handleSyncTikTok() {
+    setConnecting('tiktok');
+    try {
+      await syncTikTok();
+      setConnections(await getConnections());
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setConnecting(null);
+    }
+  }
+
+  function handleDisconnectTikTok() {
+    Alert.alert('Disconnect TikTok', 'Remove your linked TikTok account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Disconnect', style: 'destructive',
+        onPress: async () => {
+          await disconnectTikTok();
+          setConnections(await getConnections());
+        },
+      },
+    ]);
+  }
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -82,6 +132,8 @@ export default function CreatorProfileScreen() {
     ]);
 
     setViewerRole(prof?.role ?? null);
+
+    try { setConnections(await getConnections()); } catch (_) { /* table may be empty */ }
 
     if (cr) {
       const { data: ratings } = await supabase.from('redemptions').select('business_rating').eq('creator_id', cr.id).not('business_rating', 'is', null);
@@ -256,6 +308,56 @@ export default function CreatorProfileScreen() {
                 </Text>
               </TouchableOpacity>
             ) : null}
+          </View>
+
+          {/* Connected accounts */}
+          <View style={styles.connectSection}>
+            <Text style={styles.connectHeader}>Connected accounts</Text>
+            {tiktokConn ? (
+              <View style={styles.connectedRow}>
+                <SocialIcon kind="tt" size={18} color={C.ink} />
+                <View style={{ flex: 1 }}>
+                  <View style={styles.connectedTitleRow}>
+                    <Text style={styles.connectedHandle}>
+                      {tiktokConn.username ? `@${tiktokConn.username.replace(/^@/, '')}` : 'TikTok'}
+                    </Text>
+                    {tiktokConn.connection_type === 'oauth' && (
+                      <View style={styles.verifiedBadge}>
+                        <Icon name="check" size={10} color={C.ok} />
+                        <Text style={styles.verifiedText}>Verified</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.connectedStat}>
+                    {tiktokConn.follower_count.toLocaleString()} followers
+                    {tiktokConn.media_count ? `  ·  ${tiktokConn.media_count} posts` : ''}
+                  </Text>
+                </View>
+                {connecting === 'tiktok' ? (
+                  <ActivityIndicator color={C.accent} />
+                ) : (
+                  <>
+                    <TouchableOpacity onPress={handleSyncTikTok} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="arrow" size={16} color={C.muted2} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleDisconnectTikTok} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="close" size={16} color={C.muted2} />
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.connectBtn} onPress={handleConnectTikTok} disabled={connecting === 'tiktok'} activeOpacity={0.85}>
+                {connecting === 'tiktok' ? (
+                  <ActivityIndicator color={C.ink} />
+                ) : (
+                  <>
+                    <SocialIcon kind="tt" size={16} color={C.ink} />
+                    <Text style={styles.connectBtnText}>Connect TikTok</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
         </View>
@@ -455,6 +557,26 @@ const styles = StyleSheet.create({
     borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7,
   },
   socialPillText: { fontFamily: F.bodySemi, fontSize: 13, color: C.ink },
+  connectSection: { marginTop: 16, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 14, gap: 10 },
+  connectHeader: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.2, color: C.muted2, textTransform: 'uppercase' },
+  connectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, paddingVertical: 12,
+  },
+  connectBtnText: { fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
+  connectedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.paper, borderWidth: 1, borderColor: C.line2,
+    borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  connectedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  connectedHandle: { fontFamily: F.bodyBold, fontSize: 14, color: C.ink },
+  connectedStat: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 1 },
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: C.okSoft, borderRadius: R.sm, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  verifiedText: { fontFamily: F.bodySemi, fontSize: 10, color: C.ok },
   faveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginTop: 14, borderWidth: 1.5, borderColor: C.line2,
