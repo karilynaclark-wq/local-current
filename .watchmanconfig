@@ -1,0 +1,4 @@
+{
+  "settle": 3000,
+  "ignore_dirs": [".git", "node_modules/.cache", "ios/build", "android/build"]
+}

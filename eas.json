@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 20.2.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pxncnpuzgdmlsaxgrxkq.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4bmNucHV6Z2RtbHNheGdyeGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTM4NzEsImV4cCI6MjA5NTQ2OTg3MX0.71eStZb8Ushwsj_cWPq7IXnIfgYwbtNiXeb8KBbnp3s",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://ca5f6a04f0da3affd02adbe6a39bb67d@o4511575676289024.ingest.us.sentry.io/4511575680221184",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_sHMauJUC3hUpbMqmNez6GcS6fLH7rVKwUYxheYTz7h8M"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

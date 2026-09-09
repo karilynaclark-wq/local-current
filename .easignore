@@ -1,0 +1,8 @@
+ios/
+ios_backup/
+.git/
+node_modules/.cache/
+supabase/.branches/
+supabase/.temp/
+**/*.log
+**/*.map
