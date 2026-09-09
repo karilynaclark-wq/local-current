@@ -28,7 +28,7 @@ export default function RoleSelectScreen() {
       <View style={styles.cards}>
         <TouchableOpacity style={styles.card} onPress={() => select('creator')} activeOpacity={0.88}>
           <View style={styles.cardIconWrap}>
-            <Icon name="film" size={26} color={C.accent} />
+            <Icon name="film" size={19} color={C.accent} />
           </View>
           <View style={styles.cardText}>
             <Text style={styles.cardTitle}>I'm a Creator</Text>
@@ -38,7 +38,7 @@ export default function RoleSelectScreen() {
 
         <TouchableOpacity style={[styles.card, styles.cardBusiness]} onPress={() => select('business')} activeOpacity={0.88}>
           <View style={[styles.cardIconWrap, { backgroundColor: C.accentTint }]}>
-            <Icon name="storefront" size={26} color={C.accent} />
+            <Icon name="storefront" size={19} color={C.accent} />
           </View>
           <View style={styles.cardText}>
             <Text style={styles.cardTitle}>I'm a Business</Text>
@@ -61,21 +61,21 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: 10, marginBottom: 32 },
   logo: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 36, letterSpacing: -0.8, color: C.ink },
   subtitle: { fontFamily: F.body, fontSize: 15, color: C.muted, textAlign: 'center' },
-  cards: { gap: 16, marginBottom: 28 },
+  cards: { gap: 12, marginBottom: 28 },
   card: {
-    flexDirection: 'row', alignItems: 'center', gap: 16,
-    backgroundColor: C.card, borderRadius: R.lg, padding: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.card, borderRadius: R.md, padding: 12,
     borderWidth: 1.5, borderColor: C.line, ...(S.card as any),
   },
   cardBusiness: { borderColor: C.accent },
   cardIconWrap: {
-    width: 56, height: 56, borderRadius: R.md,
+    width: 36, height: 36, borderRadius: R.sm,
     backgroundColor: C.accentSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   cardText: { flex: 1 },
-  cardTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 20, color: C.ink, marginBottom: 4 },
-  cardDesc: { fontFamily: F.body, fontSize: 14, color: C.muted, lineHeight: 20 },
+  cardTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 17, color: C.ink, marginBottom: 3 },
+  cardDesc: { fontFamily: F.body, fontSize: 13, color: C.muted, lineHeight: 18 },
   signInLink: { fontFamily: F.body, textAlign: 'center', color: C.muted, fontSize: 14 },
   signInLinkBold: { fontFamily: F.bodySemi, color: C.accent },
 });
