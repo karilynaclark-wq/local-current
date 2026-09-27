@@ -7,6 +7,18 @@ import AtInput from '../../components/AtInput';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
+import { Icon, SocialIcon } from '../../components/Icon';
+import { ActivityIndicator } from 'react-native';
+import { connectTikTok, getConnections, type SocialConnection } from '../../lib/socialConnect';
+
+function rangeFromCount(n: number): string {
+  if (n < 1000) return 'Under 1K';
+  if (n < 5000) return '1K–5K';
+  if (n < 10000) return '5K–10K';
+  if (n < 50000) return '10K–50K';
+  if (n < 100000) return '50K–100K';
+  return '100K+';
+}
 
 const PLATFORMS = ['Instagram', 'TikTok'] as const;
 type SocialPlatform = typeof PLATFORMS[number];
@@ -35,6 +47,32 @@ export default function CreatorOnboardingScreen() {
   const [city] = useState('Chicago');
   const [zipCode, setZipCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tiktokConn, setTiktokConn] = useState<SocialConnection | null>(null);
+  const [connecting, setConnecting] = useState(false);
+
+  async function handleConnectTikTok() {
+    setConnecting(true);
+    try {
+      const result = await connectTikTok();
+      if (result === 'success') {
+        const conns = await getConnections();
+        const tt = conns.find(c => c.platform === 'tiktok') ?? null;
+        setTiktokConn(tt);
+        if (tt) {
+          // Auto-fill from the verified account
+          setMainPlatform('TikTok');
+          if (tt.username) setHandle(tt.username.replace(/^@/, ''));
+          setFollowerRange(rangeFromCount(tt.follower_count));
+        }
+      } else if (result === 'error') {
+        Alert.alert('Could not connect', 'TikTok connection failed. Please try again.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!mainPlatform || !handle || !followerRange || !zipCode) {
@@ -91,6 +129,40 @@ export default function CreatorOnboardingScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Tell us about yourself</Text>
           <Text style={styles.subtitle}>Help us match you with the right currents</Text>
+
+          {/* Verify with TikTok */}
+          {tiktokConn ? (
+            <View style={styles.verifiedCard}>
+              <SocialIcon kind="tt" size={20} color={C.ink} />
+              <View style={{ flex: 1 }}>
+                <View style={styles.verifiedTitleRow}>
+                  <Text style={styles.verifiedHandle}>
+                    {tiktokConn.username ? `@${tiktokConn.username.replace(/^@/, '')}` : 'TikTok connected'}
+                  </Text>
+                  <View style={styles.verifiedBadge}>
+                    <Icon name="check" size={10} color={C.ok} />
+                    <Text style={styles.verifiedBadgeText}>Verified</Text>
+                  </View>
+                </View>
+                <Text style={styles.verifiedStat}>{tiktokConn.follower_count.toLocaleString()} followers</Text>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.connectCard} onPress={handleConnectTikTok} disabled={connecting} activeOpacity={0.85}>
+              {connecting ? (
+                <ActivityIndicator color={C.accent} />
+              ) : (
+                <>
+                  <SocialIcon kind="tt" size={20} color={C.accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.connectCardTitle}>Connect TikTok</Text>
+                    <Text style={styles.connectCardSub}>Verify your account to auto-fill your stats — recommended</Text>
+                  </View>
+                  <Icon name="arrow" size={16} color={C.accent} />
+                </>
+              )}
+            </TouchableOpacity>
+          )}
 
           <Text style={styles.label}>Main platform *</Text>
           <View style={styles.chipRow}>
@@ -190,6 +262,26 @@ const styles = StyleSheet.create({
   scroll: { padding: 24, paddingBottom: 40 },
   title: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 26, letterSpacing: -0.4, color: C.ink, marginBottom: 4 },
   subtitle: { fontFamily: F.body, fontSize: 14, color: C.muted, marginBottom: 24 },
+  connectCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.accentTint, borderRadius: R.md, padding: 14,
+    borderWidth: 1.5, borderColor: C.accentSoft,
+  },
+  connectCardTitle: { fontFamily: F.bodyBold, fontSize: 15, color: C.ink },
+  connectCardSub: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 2, lineHeight: 17 },
+  verifiedCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.okSoft, borderRadius: R.md, padding: 14,
+    borderWidth: 1.5, borderColor: C.ok,
+  },
+  verifiedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  verifiedHandle: { fontFamily: F.bodyBold, fontSize: 15, color: C.ink },
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: C.card, borderRadius: R.sm, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  verifiedBadgeText: { fontFamily: F.bodySemi, fontSize: 10, color: C.ok },
+  verifiedStat: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 2 },
   label: { fontFamily: F.bodySemi, fontSize: 13, color: C.inkSoft, marginTop: 18, marginBottom: 8 },
   hint: { fontFamily: F.body, fontSize: 12, color: C.muted2, marginTop: -4, marginBottom: 8 },
   input: {
