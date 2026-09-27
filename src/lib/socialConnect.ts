@@ -14,6 +14,9 @@ export interface SocialConnection {
   username: string | null;
   avatar_url: string | null;
   profile_url: string | null;
+  bio: string | null;
+  is_verified: boolean;
+  profile_deep_link: string | null;
   follower_count: number;
   following_count: number;
   likes_count: number;
@@ -26,7 +29,7 @@ export interface SocialConnection {
 
 // Columns safe to read on the client — never select the *_token columns.
 const SAFE_COLUMNS =
-  'platform,username,avatar_url,profile_url,follower_count,following_count,likes_count,media_count,recent_posts,connection_type,last_synced_at,connected_at';
+  'platform,username,avatar_url,profile_url,bio,is_verified,profile_deep_link,follower_count,following_count,likes_count,media_count,recent_posts,connection_type,last_synced_at,connected_at';
 
 const FUNCTIONS_BASE = `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1`;
 const TIKTOK_REDIRECT = 'localcurrent://social/tiktok';

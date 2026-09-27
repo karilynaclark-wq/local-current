@@ -27,9 +27,9 @@ const TT_VIDEOS = 'https://open.tiktokapis.com/v2/video/list/';
 
 const SCOPES = 'user.info.basic,user.info.profile,user.info.stats,video.list';
 const USER_FIELDS =
-  'open_id,union_id,avatar_url,display_name,username,follower_count,following_count,likes_count,video_count';
+  'open_id,union_id,avatar_url,display_name,username,bio_description,is_verified,profile_deep_link,follower_count,following_count,likes_count,video_count';
 const VIDEO_FIELDS =
-  'id,title,cover_image_url,share_url,view_count,like_count,comment_count,create_time';
+  'id,title,video_description,duration,cover_image_url,share_url,view_count,like_count,comment_count,share_count,create_time';
 
 function admin() {
   return createClient(
@@ -90,12 +90,29 @@ async function fetchTikTokData(accessToken: string) {
     username: u.username ?? u.display_name ?? null,
     avatar_url: u.avatar_url ?? null,
     profile_url: u.username ? `https://www.tiktok.com/@${u.username}` : null,
+    bio: u.bio_description ?? null,
+    is_verified: u.is_verified ?? false,
+    profile_deep_link: u.profile_deep_link ?? null,
     follower_count: u.follower_count ?? 0,
     following_count: u.following_count ?? 0,
     likes_count: u.likes_count ?? 0,
     media_count: u.video_count ?? 0,
     recent_posts: posts,
   };
+}
+
+// Record a dated snapshot of the headline stats so we can chart growth later.
+async function writeSnapshot(db: ReturnType<typeof admin>, profileId: string, data: {
+  follower_count: number; following_count: number; likes_count: number; media_count: number;
+}) {
+  await db.from('social_stat_snapshots').insert({
+    profile_id: profileId,
+    platform: 'tiktok',
+    follower_count: data.follower_count,
+    following_count: data.following_count,
+    likes_count: data.likes_count,
+    media_count: data.media_count,
+  });
 }
 
 serve(async (req) => {
@@ -187,6 +204,7 @@ serve(async (req) => {
         ...data,
       }, { onConflict: 'profile_id,platform' });
 
+      await writeSnapshot(db, stateRow.profile_id, data);
       await db.from('oauth_states').delete().eq('state', state);
 
       return Response.redirect(`${APP_DEEP_LINK}?status=success`, 302);
@@ -247,6 +265,7 @@ serve(async (req) => {
       await db.from('social_connections')
         .update({ ...data, last_synced_at: new Date().toISOString() })
         .eq('id', conn.id);
+      await writeSnapshot(db, userId, data);
 
       return new Response(JSON.stringify({ success: true, ...data }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
