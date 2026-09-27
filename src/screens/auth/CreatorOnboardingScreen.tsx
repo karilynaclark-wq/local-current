@@ -9,7 +9,15 @@ import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
 import { ActivityIndicator } from 'react-native';
-import { connectTikTok, getConnections, type SocialConnection } from '../../lib/socialConnect';
+import {
+  connectTikTok, connectInstagram, getConnections,
+  type SocialConnection, type Platform as SocialApi, type ConnectResult,
+} from '../../lib/socialConnect';
+
+const CONNECTORS: Record<SocialApi, { label: 'TikTok' | 'Instagram'; kind: 'tt' | 'ig'; connect: () => Promise<ConnectResult> }> = {
+  tiktok: { label: 'TikTok', kind: 'tt', connect: connectTikTok },
+  instagram: { label: 'Instagram', kind: 'ig', connect: connectInstagram },
+};
 
 function rangeFromCount(n: number): string {
   if (n < 1000) return 'Under 1K';
@@ -47,30 +55,43 @@ export default function CreatorOnboardingScreen() {
   const [city] = useState('Chicago');
   const [zipCode, setZipCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tiktokConn, setTiktokConn] = useState<SocialConnection | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  const [verified, setVerified] = useState<Partial<Record<SocialApi, SocialConnection>>>({});
+  const [connecting, setConnecting] = useState<SocialApi | null>(null);
 
-  async function handleConnectTikTok() {
-    setConnecting(true);
+  async function handleConnect(api: SocialApi) {
+    const { label, connect } = CONNECTORS[api];
+    setConnecting(api);
     try {
-      const result = await connectTikTok();
+      const result = await connect();
       if (result === 'success') {
-        const conns = await getConnections();
-        const tt = conns.find(c => c.platform === 'tiktok') ?? null;
-        setTiktokConn(tt);
-        if (tt) {
-          // Auto-fill from the verified account
-          setMainPlatform('TikTok');
-          if (tt.username) setHandle(tt.username.replace(/^@/, ''));
-          setFollowerRange(rangeFromCount(tt.follower_count));
+        const conn = (await getConnections()).find(c => c.platform === api);
+        if (!conn) return;
+        setVerified(v => ({ ...v, [api]: conn }));
+        // Auto-fill the form: first verified account becomes the main
+        // platform, a second one fills the secondary slot.
+        const h = conn.username?.replace(/^@/, '') ?? '';
+        const range = rangeFromCount(conn.follower_count);
+        if (!mainPlatform || mainPlatform === label) {
+          setMainPlatform(label);
+          if (h) setHandle(h);
+          setFollowerRange(range);
+        } else {
+          setHasSecondary(true);
+          setSecondaryPlatform(label);
+          if (h) setSecondaryHandle(h);
+          setSecondaryFollowers(range);
         }
+      } else if (result === 'account_type') {
+        Alert.alert('Personal account', 'Instagram only lets Business or Creator accounts connect. Just fill in your handle and follower range below instead.');
+      } else if (result === 'not_configured') {
+        Alert.alert('Coming soon', `${label} connection isn't available yet — fill in your details below.`);
       } else if (result === 'error') {
-        Alert.alert('Could not connect', 'TikTok connection failed. Please try again.');
+        Alert.alert('Could not connect', `${label} connection failed. Please try again.`);
       }
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
-      setConnecting(false);
+      setConnecting(null);
     }
   }
 
@@ -130,39 +151,49 @@ export default function CreatorOnboardingScreen() {
           <Text style={styles.title}>Tell us about yourself</Text>
           <Text style={styles.subtitle}>Help us match you with the right currents</Text>
 
-          {/* Verify with TikTok */}
-          {tiktokConn ? (
-            <View style={styles.verifiedCard}>
-              <SocialIcon kind="tt" size={20} color={C.ink} />
-              <View style={{ flex: 1 }}>
-                <View style={styles.verifiedTitleRow}>
-                  <Text style={styles.verifiedHandle}>
-                    {tiktokConn.username ? `@${tiktokConn.username.replace(/^@/, '')}` : 'TikTok connected'}
-                  </Text>
-                  <View style={styles.verifiedBadge}>
-                    <Icon name="check" size={10} color={C.ok} />
-                    <Text style={styles.verifiedBadgeText}>Verified</Text>
+          {/* Verify with TikTok / Instagram */}
+          <View style={{ gap: 10 }}>
+            {(['tiktok', 'instagram'] as SocialApi[]).map(api => {
+              const { label, kind } = CONNECTORS[api];
+              const conn = verified[api];
+              return conn ? (
+                <View key={api} style={styles.verifiedCard}>
+                  <SocialIcon kind={kind} size={20} color={C.ink} />
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.verifiedTitleRow}>
+                      <Text style={styles.verifiedHandle}>
+                        {conn.username ? `@${conn.username.replace(/^@/, '')}` : `${label} connected`}
+                      </Text>
+                      <View style={styles.verifiedBadge}>
+                        <Icon name="check" size={10} color={C.ok} />
+                        <Text style={styles.verifiedBadgeText}>Verified</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.verifiedStat}>{conn.follower_count.toLocaleString()} followers</Text>
                   </View>
                 </View>
-                <Text style={styles.verifiedStat}>{tiktokConn.follower_count.toLocaleString()} followers</Text>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.connectCard} onPress={handleConnectTikTok} disabled={connecting} activeOpacity={0.85}>
-              {connecting ? (
-                <ActivityIndicator color={C.accent} />
               ) : (
-                <>
-                  <SocialIcon kind="tt" size={20} color={C.accent} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.connectCardTitle}>Connect TikTok</Text>
-                    <Text style={styles.connectCardSub}>Verify your account to auto-fill your stats — recommended</Text>
-                  </View>
-                  <Icon name="arrow" size={16} color={C.accent} />
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+                <TouchableOpacity key={api} style={styles.connectCard} onPress={() => handleConnect(api)} disabled={!!connecting} activeOpacity={0.85}>
+                  {connecting === api ? (
+                    <ActivityIndicator color={C.accent} />
+                  ) : (
+                    <>
+                      <SocialIcon kind={kind} size={20} color={C.accent} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.connectCardTitle}>Connect {label}</Text>
+                        <Text style={styles.connectCardSub}>
+                          {api === 'instagram'
+                            ? 'Business or Creator accounts — auto-fills your stats'
+                            : 'Verify your account to auto-fill your stats — recommended'}
+                        </Text>
+                      </View>
+                      <Icon name="arrow" size={16} color={C.accent} />
+                    </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={styles.label}>Main platform *</Text>
           <View style={styles.chipRow}>

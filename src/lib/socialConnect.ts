@@ -1,7 +1,7 @@
-// Social account connections (TikTok now; Instagram to follow).
+// Social account connections (TikTok, Instagram).
 //
-// The OAuth flow is brokered by the `tiktok-auth` edge function so the client
-// secret never lives in the app. Here we: ask the function for a login URL,
+// Each OAuth flow is brokered by a `<platform>-auth` edge function so client
+// secrets never live in the app. Here we: ask the function for a login URL,
 // open it in a secure browser session, and let the function deep-link us back.
 
 import * as WebBrowser from 'expo-web-browser';
@@ -33,7 +33,6 @@ const SAFE_COLUMNS =
   'platform,username,avatar_url,profile_url,bio,is_verified,profile_deep_link,follower_count,following_count,likes_count,media_count,recent_posts,connection_type,needs_reconnect,last_synced_at,connected_at';
 
 const FUNCTIONS_BASE = `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1`;
-const TIKTOK_REDIRECT = 'localcurrent://social/tiktok';
 
 async function authHeader(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
@@ -51,39 +50,51 @@ export async function getConnections(): Promise<SocialConnection[]> {
 }
 
 /**
- * Launch the TikTok connect flow. Returns 'success' | 'cancel' | 'error'.
- * On success the edge function has already saved the connection — callers
- * should re-fetch getConnections() afterward.
+ * Outcome of a connect attempt.
+ * - 'account_type': Instagram rejected a personal (non-professional) account
+ * - 'not_configured': the platform's app credentials aren't set up yet
  */
-export async function connectTikTok(): Promise<'success' | 'cancel' | 'error'> {
+export type ConnectResult = 'success' | 'cancel' | 'error' | 'account_type' | 'not_configured';
+
+/**
+ * Launch a platform's connect flow via its edge-function broker. On success
+ * the function has already saved the connection — callers should re-fetch
+ * getConnections() afterward.
+ */
+async function connectPlatform(platform: Platform): Promise<ConnectResult> {
   const headers = await authHeader();
   if (!headers.Authorization) return 'error';
 
-  // 1) Ask the broker for a TikTok authorize URL tied to this user.
-  const res = await fetch(`${FUNCTIONS_BASE}/tiktok-auth?action=start`, { headers });
+  // 1) Ask the broker for an authorize URL tied to this user.
+  const res = await fetch(`${FUNCTIONS_BASE}/${platform}-auth?action=start`, { headers });
+  if (res.status === 503) return 'not_configured';
   if (!res.ok) return 'error';
   const { authorizeUrl } = await res.json();
   if (!authorizeUrl) return 'error';
 
-  // 2) Open it; the browser closes when TikTok redirects to our deep link.
-  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, TIKTOK_REDIRECT);
+  // 2) Open it; the browser closes when the broker redirects to our deep link.
+  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, `localcurrent://social/${platform}`);
   if (result.type !== 'success') return 'cancel';
 
   // 3) The deep-link URL carries the outcome from the edge function.
-  return result.url.includes('status=success') ? 'success' : 'error';
+  if (result.url.includes('status=success')) return 'success';
+  if (result.url.includes('status=cancel')) return 'cancel';
+  if (result.url.includes('reason=account_type')) return 'account_type';
+  return 'error';
 }
 
-/** Re-pull follower count + posts for the connected TikTok account. */
-export async function syncTikTok(): Promise<void> {
+async function postAction(platform: Platform, action: 'sync' | 'disconnect'): Promise<void> {
   const headers = await authHeader();
-  await fetch(`${FUNCTIONS_BASE}/tiktok-auth?action=sync`, { method: 'POST', headers });
+  await fetch(`${FUNCTIONS_BASE}/${platform}-auth?action=${action}`, { method: 'POST', headers });
 }
 
-/** Disconnect the TikTok account. */
-export async function disconnectTikTok(): Promise<void> {
-  const headers = await authHeader();
-  await fetch(`${FUNCTIONS_BASE}/tiktok-auth?action=disconnect`, { method: 'POST', headers });
-}
+export const connectTikTok = () => connectPlatform('tiktok');
+export const syncTikTok = () => postAction('tiktok', 'sync');
+export const disconnectTikTok = () => postAction('tiktok', 'disconnect');
+
+export const connectInstagram = () => connectPlatform('instagram');
+export const syncInstagram = () => postAction('instagram', 'sync');
+export const disconnectInstagram = () => postAction('instagram', 'disconnect');
 
 /**
  * Manual fallback (e.g. Instagram personal accounts that can't use the API).

@@ -10,8 +10,20 @@ import { C, F, R, S } from '../../theme';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 import {
   getConnections, connectTikTok, syncTikTok, disconnectTikTok,
-  type SocialConnection,
+  connectInstagram, syncInstagram, disconnectInstagram, saveManualConnection,
+  type SocialConnection, type Platform, type ConnectResult,
 } from '../../lib/socialConnect';
+import { ConnectedAccountRow, ConnectButton, ManualEntrySheet } from '../../components/SocialAccounts';
+
+const PLATFORM_API: Record<Platform, {
+  label: string;
+  connect: () => Promise<ConnectResult>;
+  sync: () => Promise<void>;
+  disconnect: () => Promise<void>;
+}> = {
+  tiktok: { label: 'TikTok', connect: connectTikTok, sync: syncTikTok, disconnect: disconnectTikTok },
+  instagram: { label: 'Instagram', connect: connectInstagram, sync: syncInstagram, disconnect: disconnectInstagram },
+};
 
 interface CreatorData {
   full_name: string;
@@ -74,19 +86,27 @@ export default function CreatorProfileScreen() {
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [selectedCircuit, setSelectedCircuit] = useState<CompletedCircuit | null>(null);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
-  const [connecting, setConnecting] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<Platform | null>(null);
+  const [manualFor, setManualFor] = useState<Platform | null>(null);
 
-  const tiktokConn = connections.find(c => c.platform === 'tiktok');
-
-  async function handleConnectTikTok() {
-    setConnecting('tiktok');
+  async function handleConnect(platform: Platform) {
+    const { label, connect } = PLATFORM_API[platform];
+    setConnecting(platform);
     try {
-      const result = await connectTikTok();
+      const result = await connect();
       if (result === 'success') {
         setConnections(await getConnections());
-        Alert.alert('Connected', 'Your TikTok account is now linked.');
+        Alert.alert('Connected', `Your ${label} account is now linked.`);
+      } else if (result === 'account_type') {
+        Alert.alert(
+          'Personal account',
+          'Instagram only lets Business or Creator accounts connect. Switch to a professional account in Instagram settings, or add your details manually.',
+          [{ text: 'OK' }, { text: 'Add manually', onPress: () => setManualFor(platform) }],
+        );
+      } else if (result === 'not_configured') {
+        Alert.alert('Coming soon', `${label} connection isn't available yet. You can add your details manually for now.`);
       } else if (result === 'error') {
-        Alert.alert('Could not connect', 'TikTok connection failed. Please try again.');
+        Alert.alert('Could not connect', `${label} connection failed. Please try again.`);
       }
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -95,10 +115,10 @@ export default function CreatorProfileScreen() {
     }
   }
 
-  async function handleSyncTikTok() {
-    setConnecting('tiktok');
+  async function handleSync(platform: Platform) {
+    setConnecting(platform);
     try {
-      await syncTikTok();
+      await PLATFORM_API[platform].sync();
       setConnections(await getConnections());
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -107,17 +127,24 @@ export default function CreatorProfileScreen() {
     }
   }
 
-  function handleDisconnectTikTok() {
-    Alert.alert('Disconnect TikTok', 'Remove your linked TikTok account?', [
+  function handleDisconnect(platform: Platform) {
+    const { label, disconnect } = PLATFORM_API[platform];
+    Alert.alert(`Disconnect ${label}`, `Remove your linked ${label} account?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Disconnect', style: 'destructive',
         onPress: async () => {
-          await disconnectTikTok();
+          await disconnect();
           setConnections(await getConnections());
         },
       },
     ]);
+  }
+
+  async function handleManualSave(handle: string, followers: number) {
+    if (!manualFor) return;
+    await saveManualConnection(manualFor, handle, followers);
+    setConnections(await getConnections());
   }
 
   const load = useCallback(async () => {
@@ -313,57 +340,34 @@ export default function CreatorProfileScreen() {
           {/* Connected accounts */}
           <View style={styles.connectSection}>
             <Text style={styles.connectHeader}>Connected accounts</Text>
-            {tiktokConn ? (
-              <View style={styles.connectedRow}>
-                <SocialIcon kind="tt" size={18} color={C.ink} />
-                <View style={{ flex: 1 }}>
-                  <View style={styles.connectedTitleRow}>
-                    <Text style={styles.connectedHandle}>
-                      {tiktokConn.username ? `@${tiktokConn.username.replace(/^@/, '')}` : 'TikTok'}
-                    </Text>
-                    {tiktokConn.connection_type === 'oauth' && (
-                      <View style={styles.verifiedBadge}>
-                        <Icon name="check" size={10} color={C.ok} />
-                        <Text style={styles.verifiedText}>Verified</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.connectedStat}>
-                    {tiktokConn.follower_count.toLocaleString()} followers
-                    {tiktokConn.media_count ? `  ·  ${tiktokConn.media_count} posts` : ''}
-                  </Text>
-                  {tiktokConn.needs_reconnect && (
-                    <TouchableOpacity onPress={handleConnectTikTok} activeOpacity={0.7}>
-                      <Text style={styles.reconnectText}>⚠ Connection expired — tap to reconnect</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                {connecting === 'tiktok' ? (
-                  <ActivityIndicator color={C.accent} />
-                ) : (
-                  <>
-                    <TouchableOpacity onPress={handleSyncTikTok} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Icon name="arrow" size={16} color={C.muted2} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleDisconnectTikTok} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Icon name="close" size={16} color={C.muted2} />
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.connectBtn} onPress={handleConnectTikTok} disabled={connecting === 'tiktok'} activeOpacity={0.85}>
-                {connecting === 'tiktok' ? (
-                  <ActivityIndicator color={C.ink} />
-                ) : (
-                  <>
-                    <SocialIcon kind="tt" size={16} color={C.ink} />
-                    <Text style={styles.connectBtnText}>Connect TikTok</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+            {(['tiktok', 'instagram'] as Platform[]).map(platform => {
+              const conn = connections.find(c => c.platform === platform);
+              return conn ? (
+                <ConnectedAccountRow
+                  key={platform}
+                  conn={conn}
+                  busy={connecting === platform}
+                  onSync={() => handleSync(platform)}
+                  onDisconnect={() => handleDisconnect(platform)}
+                  onReconnect={() => handleConnect(platform)}
+                />
+              ) : (
+                <ConnectButton
+                  key={platform}
+                  platform={platform}
+                  busy={connecting === platform}
+                  onPress={() => handleConnect(platform)}
+                  onManual={platform === 'instagram' ? () => setManualFor(platform) : undefined}
+                />
+              );
+            })}
           </View>
+          <ManualEntrySheet
+            platform={manualFor ?? 'instagram'}
+            visible={!!manualFor}
+            onClose={() => setManualFor(null)}
+            onSave={handleManualSave}
+          />
 
         </View>
 
@@ -564,25 +568,6 @@ const styles = StyleSheet.create({
   socialPillText: { fontFamily: F.bodySemi, fontSize: 13, color: C.ink },
   connectSection: { marginTop: 16, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 14, gap: 10 },
   connectHeader: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.2, color: C.muted2, textTransform: 'uppercase' },
-  connectBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, paddingVertical: 12,
-  },
-  connectBtnText: { fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
-  connectedRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: C.paper, borderWidth: 1, borderColor: C.line2,
-    borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10,
-  },
-  connectedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  connectedHandle: { fontFamily: F.bodyBold, fontSize: 14, color: C.ink },
-  connectedStat: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 1 },
-  verifiedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: C.okSoft, borderRadius: R.sm, paddingHorizontal: 6, paddingVertical: 2,
-  },
-  verifiedText: { fontFamily: F.bodySemi, fontSize: 10, color: C.ok },
-  reconnectText: { fontFamily: F.bodySemi, fontSize: 12, color: '#DC2626', marginTop: 3 },
   faveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginTop: 14, borderWidth: 1.5, borderColor: C.line2,
