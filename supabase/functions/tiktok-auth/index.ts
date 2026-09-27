@@ -140,9 +140,14 @@ serve(async (req) => {
       const verifier = randomString(64);
       const challenge = await pkceChallenge(verifier);
 
-      await admin().from('oauth_states').insert({
+      const { error: stateErr } = await admin().from('oauth_states').insert({
         state, profile_id: userId, platform: 'tiktok', code_verifier: verifier,
       });
+      if (stateErr) {
+        return new Response(JSON.stringify({ error: 'state_insert_failed', detail: stateErr.message }), {
+          status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
+        });
+      }
 
       const authorizeUrl = `${TT_AUTHORIZE}?` + new URLSearchParams({
         client_key: CLIENT_KEY,
