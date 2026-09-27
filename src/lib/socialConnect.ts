@@ -23,13 +23,14 @@ export interface SocialConnection {
   media_count: number;
   recent_posts: any[] | null;
   connection_type: 'oauth' | 'manual';
+  needs_reconnect: boolean;
   last_synced_at: string | null;
   connected_at: string;
 }
 
 // Columns safe to read on the client — never select the *_token columns.
 const SAFE_COLUMNS =
-  'platform,username,avatar_url,profile_url,bio,is_verified,profile_deep_link,follower_count,following_count,likes_count,media_count,recent_posts,connection_type,last_synced_at,connected_at';
+  'platform,username,avatar_url,profile_url,bio,is_verified,profile_deep_link,follower_count,following_count,likes_count,media_count,recent_posts,connection_type,needs_reconnect,last_synced_at,connected_at';
 
 const FUNCTIONS_BASE = `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1`;
 const TIKTOK_REDIRECT = 'localcurrent://social/tiktok';

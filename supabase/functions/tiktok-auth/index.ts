@@ -200,6 +200,7 @@ serve(async (req) => {
         token_expires_at: token.expires_in
           ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
         scopes: token.scope ?? SCOPES,
+        needs_reconnect: false,
         last_synced_at: new Date().toISOString(),
         ...data,
       }, { onConflict: 'profile_id,platform' });
@@ -263,7 +264,7 @@ serve(async (req) => {
 
       const data = await fetchTikTokData(accessToken);
       await db.from('social_connections')
-        .update({ ...data, last_synced_at: new Date().toISOString() })
+        .update({ ...data, needs_reconnect: false, last_synced_at: new Date().toISOString() })
         .eq('id', conn.id);
       await writeSnapshot(db, userId, data);
 

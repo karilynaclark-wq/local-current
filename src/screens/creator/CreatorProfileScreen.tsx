@@ -332,6 +332,11 @@ export default function CreatorProfileScreen() {
                     {tiktokConn.follower_count.toLocaleString()} followers
                     {tiktokConn.media_count ? `  ·  ${tiktokConn.media_count} posts` : ''}
                   </Text>
+                  {tiktokConn.needs_reconnect && (
+                    <TouchableOpacity onPress={handleConnectTikTok} activeOpacity={0.7}>
+                      <Text style={styles.reconnectText}>⚠ Connection expired — tap to reconnect</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {connecting === 'tiktok' ? (
                   <ActivityIndicator color={C.accent} />
@@ -577,6 +582,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.okSoft, borderRadius: R.sm, paddingHorizontal: 6, paddingVertical: 2,
   },
   verifiedText: { fontFamily: F.bodySemi, fontSize: 10, color: C.ok },
+  reconnectText: { fontFamily: F.bodySemi, fontSize: 12, color: '#DC2626', marginTop: 3 },
   faveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginTop: 14, borderWidth: 1.5, borderColor: C.line2,
