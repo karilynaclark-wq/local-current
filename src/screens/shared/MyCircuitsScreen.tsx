@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { countFilled, requestChipFor } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon, Mark } from '../../components/Icon';
 import { Logo } from '../../components/Logo';
@@ -68,14 +69,12 @@ function getDisplayHandle(creator: any): string {
 }
 
 // ─── Status mapping helper ────────────────────────────────────────────────────
-function redemptionStatus(status: string): 'active' | 'completed' | 'claimed' | 'inactive' {
-  if (status === 'completed') return 'completed';
-  if (status === 'checked_in' || status === 'claimed') return 'claimed';
-  return 'active';
+function redemptionStatus(status: string) {
+  return requestChipFor(status, true);
 }
 function circuitStatus(item: any): 'active' | 'completed' | 'inactive' {
   if (item.is_active) return 'active';
-  if ((item.redemptions?.length ?? 0) > 0) return 'completed';
+  if (countFilled(item.redemptions) > 0) return 'completed';
   return 'inactive';
 }
 
@@ -112,11 +111,11 @@ export default function MyCircuitsScreen() {
       if (biz) {
         const { data: circuitData } = await supabase
           .from('circuits')
-          .select('*, business:businesses(business_name, address), redemptions(id)')
+          .select('*, business:businesses(business_name, address), redemptions(id, status)')
           .eq('business_id', biz.id)
           .order('created_at', { ascending: false });
         const sorted = (circuitData ?? []).sort((a: any, b: any) => {
-          const rank = (c: any) => c.is_active ? 0 : (c.redemptions?.length ?? 0) > 0 ? 2 : 1;
+          const rank = (c: any) => c.is_active ? 0 : countFilled(c.redemptions) > 0 ? 2 : 1;
           return rank(a) - rank(b);
         });
         setItems(sorted);

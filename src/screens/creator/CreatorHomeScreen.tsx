@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { Circuit } from '../../types';
+import { Circuit, requestChipFor, type RequestChip } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { Logo } from '../../components/Logo';
@@ -154,13 +154,15 @@ export default function CreatorHomeScreen() {
           ) : null
         )}
         renderItem={({ item, section }) => {
-          const redemption = redemptionMap[item.id];
+          const raw = redemptionMap[item.id];
+          // Withdrawn/expired requests can be requested again: show like a fresh current.
+          const redemption = raw && (raw.status === 'cancelled' || raw.status === 'expired') ? undefined : raw;
           const fullyDone = redemption?.status === 'completed' && redemption?.hasPost;
           if (fullyDone) return null; // hide only after redemption + post both complete
           const neighborhood = neighborhoodFromAddress(item.business?.address);
-          let chipStatus: 'claimed' | 'redeemed' | 'active' | undefined;
+          let chipStatus: RequestChip | 'active' | undefined;
           if (redemption) {
-            chipStatus = redemption.status === 'completed' ? 'redeemed' : 'claimed';
+            chipStatus = requestChipFor(redemption.status, redemption.hasPost);
           } else if (section.eligible) {
             chipStatus = 'active';
           }

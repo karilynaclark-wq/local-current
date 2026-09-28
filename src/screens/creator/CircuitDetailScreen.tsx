@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { Circuit } from '../../types';
@@ -14,16 +13,6 @@ import { Icon } from '../../components/Icon';
 import { getPushToken, sendPush } from '../../lib/notifications';
 import { trackEvent } from '../../lib/analytics';
 import { isEligibleForCircuit, currentlyEligibleRanges, creatorFollowersByPlatform, eligibilityStatus } from '../../lib/eligibility';
-
-const CHECK_IN_RADIUS_METERS = 400;
-
-function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function useCountdown(target: string | null) {
   const [remaining, setRemaining] = useState('');
@@ -146,7 +135,6 @@ export default function CircuitDetailScreen() {
   const route = useRoute<any>();
   const circuit: Circuit = route.params.circuit;
   const [loading, setLoading] = useState(false);
-  const [checkInLoading, setCheckInLoading] = useState(false);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [showUnclaimModal, setShowUnclaimModal] = useState(false);
   const [showPendingModal, setShowPendingModal] = useState(false);
@@ -158,10 +146,10 @@ export default function CircuitDetailScreen() {
   const [creatorFollowerRange, setCreatorFollowerRange] = useState<string | null>(null);
   const [creatorFollowers, setCreatorFollowers] = useState<{ tiktok?: string; instagram?: string }>({});
   const [showReqModal, setShowReqModal] = useState(false);
-  // One entry normally; several when the business gave a code per person
-  // (first is the creator's, the rest are for their friends).
-  const [assignedCodes, setAssignedCodes] = useState<string[]>([]);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  // Free-text access details the business sent when approving the request.
+  const [accessDetails, setAccessDetails] = useState<string | null>(null);
+  const [detailsCopied, setDetailsCopied] = useState(false);
+  const [requestedAt, setRequestedAt] = useState<string | null>(null);
   const [showBookModal, setShowBookModal] = useState(false);
   const [bookMonth, setBookMonth] = useState('');
   const [bookDay, setBookDay] = useState('');
@@ -178,7 +166,6 @@ export default function CircuitDetailScreen() {
   const [businessContactName, setBusinessContactName] = useState<string | null>(null);
   const [voucherWindowEnd, setVoucherWindowEnd] = useState<string | null>(null);
   const [problemReportedAt, setProblemReportedAt] = useState<string | null>(null);
-  const [isFull, setIsFull] = useState(false);
 
   const postDeadline = checkedInAt
     ? new Date(new Date(checkedInAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
@@ -193,7 +180,6 @@ export default function CircuitDetailScreen() {
         .update({ redeemed_at: new Date().toISOString(), status: 'completed' })
         .eq('id', redemptionId)
         .then(() => {
-          supabase.from('circuit_codes').update({ is_used: true }).eq('redemption_id', redemptionId);
           setRedemptionStatus('completed');
         });
     }
@@ -206,7 +192,7 @@ export default function CircuitDetailScreen() {
         .then(({ data: creator }) => {
           if (!creator) return;
           supabase.from('redemptions')
-            .select('id, status, checked_in_at, expires_at, problem_reported_at')
+            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, requested_at, claimed_at')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
@@ -220,19 +206,8 @@ export default function CircuitDetailScreen() {
                 if (existing.checked_in_at) {
                   setVoucherWindowEnd(new Date(new Date(existing.checked_in_at).getTime() + 4 * 60 * 60 * 1000).toISOString());
                 }
-                // Fetch this creator's redemption code (unique per creator, or a
-                // single shared code if the business only supplied one).
-                supabase.from('circuit_codes').select('id, code, redemption_id, created_at')
-                  .eq('circuit_id', circuit.id)
-                  .order('created_at', { ascending: true })
-                  .then(({ data: codeRows }) => {
-                    if (!codeRows || codeRows.length === 0) return;
-                    if (circuit.code_mode === 'shared' || (!circuit.code_mode && codeRows.length === 1)) {
-                      setAssignedCodes([codeRows[0].code]);
-                      return;
-                    }
-                    setAssignedCodes(codeRows.filter(c => c.redemption_id === existing.id).map(c => c.code));
-                  });
+                setAccessDetails(existing.access_details ?? null);
+                setRequestedAt(existing.requested_at ?? existing.claimed_at ?? null);
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
               }
@@ -274,17 +249,13 @@ export default function CircuitDetailScreen() {
                 setCreatorNiches(niches);
                 setEligible(isEligibleForCircuit(circuit, range, niches, followers));
                 setEligStatus(eligibilityStatus(circuit, range, niches, followers));
-                if (circuit.max_redemptions != null) {
-                  supabase.from('redemptions').select('id', { count: 'exact', head: true }).eq('circuit_id', circuit.id)
-                    .then(({ count }) => { if (count != null && count >= circuit.max_redemptions) setIsFull(true); });
-                }
               });
           }
         });
     });
   }, []);
 
-  async function handleClaim() {
+  async function handleRequest() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -292,57 +263,44 @@ export default function CircuitDetailScreen() {
       const { data: creator } = await supabase.from('creators').select('id').eq('profile_id', user.id).single();
       if (!creator) throw new Error('Creator profile not found');
 
-      if (circuit.max_redemptions != null) {
-        const { count } = await supabase.from('redemptions').select('id', { count: 'exact', head: true }).eq('circuit_id', circuit.id);
-        if (count != null && count >= circuit.max_redemptions) {
-          Alert.alert('No spots left', 'All spots for this current have been claimed.');
-          return;
-        }
-      }
-
       const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-      const { count: recentClaims } = await supabase
+      const { count: recentRequests } = await supabase
         .from('redemptions')
         .select('id', { count: 'exact', head: true })
         .eq('creator_id', creator.id)
         .gte('claimed_at', fifteenMinutesAgo);
-      if ((recentClaims ?? 0) > 0) {
-        Alert.alert('Slow down', 'You can only claim one current every 15 minutes. Come back shortly!');
+      if ((recentRequests ?? 0) > 0) {
+        Alert.alert('Slow down', 'You can only request one current every 15 minutes. Come back shortly!');
         return;
+      }
+
+      // A previously withdrawn or expired request can be replaced.
+      if (redemptionId && (redemptionStatus === 'cancelled' || redemptionStatus === 'expired')) {
+        await supabase.from('redemptions').delete().eq('id', redemptionId);
       }
 
       const { data: redemption, error } = await supabase.from('redemptions').insert({
         circuit_id: circuit.id,
         creator_id: creator.id,
-        status: 'claimed',
+        status: 'requested',
       }).select().single();
       if (error) throw error;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      trackEvent('circuit_claimed', { circuit_id: circuit.id, circuit_title: circuit.title, business_id: circuit.business_id });
-
-      // Code assignment happens server-side via the assign_circuit_code
-      // trigger on redemptions insert (creators can't read/write circuit_codes
-      // directly under RLS). The assigned code is then readable via the
-      // circuit_codes_select_own policy.
-
-      if (circuit.max_redemptions != null) {
-        const { count } = await supabase.from('redemptions').select('id', { count: 'exact', head: true }).eq('circuit_id', circuit.id);
-        if (count != null && count >= circuit.max_redemptions) {
-          await supabase.from('circuits').update({ is_active: false }).eq('id', circuit.id);
-        }
-      }
+      trackEvent('circuit_requested', { circuit_id: circuit.id, circuit_title: circuit.title, business_id: circuit.business_id });
 
       const { data: biz } = await supabase.from('businesses').select('profile_id').eq('id', circuit.business_id).single();
       if (biz?.profile_id) {
         const token = await getPushToken(biz.profile_id);
-        if (token) sendPush(token, 'New claim! 🎉', `A creator just claimed your "${circuit.title}" current`);
+        if (token) sendPush(token, 'New request 🙋', `${creatorName || 'A creator'} wants to join "${circuit.title}". Tap to review.`);
         supabase.from('profiles').select('full_name').eq('id', biz.profile_id).single()
           .then(({ data: p }) => { if (p?.full_name) setBusinessContactName(p.full_name); });
       }
 
       setHasClaimed(true);
-      setRedemptionStatus('claimed');
+      setRedemptionStatus('requested');
       setRedemptionId(redemption.id);
+      setRequestedAt(redemption.requested_at ?? new Date().toISOString());
+      setAccessDetails(null);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -350,14 +308,13 @@ export default function CircuitDetailScreen() {
     }
   }
 
-  async function handleUnclaim() {
-    if (!creatorId) return;
+  async function handleWithdraw() {
+    if (!redemptionId) return;
     setLoading(true);
     try {
-      const { error } = await supabase.from('redemptions').delete().eq('circuit_id', circuit.id).eq('creator_id', creatorId);
+      const { error } = await supabase.rpc('withdraw_request', { p_redemption_id: redemptionId });
       if (error) throw error;
-      setHasClaimed(false);
-      setRedemptionStatus(null);
+      setRedemptionStatus('cancelled');
       setShowUnclaimModal(false);
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -393,67 +350,6 @@ export default function CircuitDetailScreen() {
     } finally {
       setBooking(false);
     }
-  }
-
-  async function handleCheckIn() {
-    if (!redemptionId) return;
-    setCheckInLoading(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location needed', 'Please allow location access to check in.');
-        return;
-      }
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const { latitude, longitude } = location.coords;
-      const address = circuit.business?.address;
-      if (address) {
-        const geocoded = await Location.geocodeAsync(address);
-        if (geocoded && geocoded.length > 0) {
-          const { latitude: bizLat, longitude: bizLon } = geocoded[0];
-          const distance = getDistanceMeters(latitude, longitude, bizLat, bizLon);
-          if (distance > CHECK_IN_RADIUS_METERS) {
-            Alert.alert(
-              'Not close enough',
-              `You need to be within ${CHECK_IN_RADIUS_METERS}m of the business to check in. You're currently ${Math.round(distance)}m away.\n\nIf you're confident you're at the right place, tap "I'm here".`,
-              [
-                { text: "I'm here", onPress: async () => {
-                    setCheckInLoading(true);
-                    try { await doCheckIn(); }
-                    catch (e: any) { Alert.alert('Error', e.message); }
-                    finally { setCheckInLoading(false); }
-                  }
-                },
-                { text: 'Cancel', style: 'cancel' },
-              ]
-            );
-            return;
-          }
-        }
-      }
-      await doCheckIn();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setCheckInLoading(false);
-    }
-  }
-
-  async function doCheckIn() {
-    if (!redemptionId) return;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString();
-    const { error } = await supabase.from('redemptions').update({
-      checked_in_at: now.toISOString(),
-      expires_at: expiresAt,
-      status: 'checked_in',
-    }).eq('id', redemptionId);
-    if (error) throw error;
-    trackEvent('checked_in', { redemption_id: redemptionId, circuit_title: circuit.title });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setCheckedInAt(now.toISOString());
-    setVoucherWindowEnd(expiresAt);
-    setRedemptionStatus('checked_in');
   }
 
   const isVoucher = circuit.redemption_type === 'voucher';
@@ -496,6 +392,17 @@ export default function CircuitDetailScreen() {
 
   const minRedemption = redemptionId ? { id: redemptionId, circuit } : null;
 
+  // Request lifecycle. 'claimed' is the pre-approval-flow equivalent of approved.
+  const isRequested = hasClaimed && redemptionStatus === 'requested';
+  const isApproved = hasClaimed && (redemptionStatus === 'approved' || redemptionStatus === 'claimed');
+  const isClosedRequest = hasClaimed && ['declined', 'expired', 'cancelled'].includes(redemptionStatus ?? '');
+  const canRequestAgain = redemptionStatus === 'cancelled' || redemptionStatus === 'expired';
+  // The approve function switches a current off once its last spot is filled.
+  const isFull = circuit.is_active === false && !isExpired;
+  const requestExpiresAt = requestedAt
+    ? new Date(new Date(requestedAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
+    : null;
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -509,7 +416,7 @@ export default function CircuitDetailScreen() {
             <Text style={styles.expiredBannerText}>This current has expired and is no longer accepting claims.</Text>
           </View>
         )}
-        {expiresSoon && !hasClaimed && (
+        {expiresSoon && (!hasClaimed || isClosedRequest) && (
           <View style={styles.expiresSoonBanner}>
             <Icon name="bell" size={15} color="#92400E" />
             <Text style={styles.expiredBannerText}>
@@ -523,7 +430,7 @@ export default function CircuitDetailScreen() {
 
         {circuit.description ? <Text style={styles.leadDesc}>{circuit.description}</Text> : null}
 
-        {!hasClaimed && (
+        {(!hasClaimed || isClosedRequest) && (
           <>
             {eligStatus !== null && (() => {
               const tone = eligStatus === 'eligible' ? C.ok : eligStatus === 'soon' ? C.accent : C.muted;
@@ -578,50 +485,72 @@ export default function CircuitDetailScreen() {
           </>
         )}
 
-        {/* ── State 1: Claimed, not yet booked ── */}
-        {hasClaimed && redemptionStatus === 'claimed' && (
+        {/* ── Requested: waiting on the business ── */}
+        {isRequested && (
           <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>Yay, you're attending {circuit.title}!</Text>
+            <Text style={styles.stateTitle}>Request sent 🙌</Text>
+            <Text style={styles.stepText}>
+              {circuit.business?.business_name ?? 'The business'} will review your profile and respond within 48 hours.
+              If they approve, you'll get a notification with everything you need to attend.
+            </Text>
+            {requestExpiresAt ? (
+              <Text style={styles.stepNote}>
+                Expires {new Date(requestExpiresAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })} if there's no response.
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+        {/* ── Declined / expired / withdrawn ── */}
+        {isClosedRequest && (
+          <View style={styles.stateBox}>
+            <Text style={styles.stateTitle}>
+              {redemptionStatus === 'declined' ? 'Not this time'
+                : redemptionStatus === 'expired' ? 'Request expired'
+                : 'Request withdrawn'}
+            </Text>
+            <Text style={styles.stepText}>
+              {redemptionStatus === 'declined'
+                ? "The business went with other creators for this one. Don't sweat it, there are more currents to request."
+                : redemptionStatus === 'expired'
+                ? "The business didn't respond within 48 hours. You can request again or browse other currents."
+                : 'You withdrew your request. You can request again if spots are still open.'}
+            </Text>
+          </View>
+        )}
+
+        {isApproved && (
+          <View style={styles.stateBox}>
+            <Text style={styles.stateTitle}>You're in! 🎉 {circuit.title}</Text>
 
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>1</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Grab tickets ASAP. Use this code at checkout on the event page:</Text>
-                {assignedCodes.length > 0 ? (
-                  <>
-                    {assignedCodes.map((code, idx) => (
-                      <View key={`${code}-${idx}`}>
-                        {assignedCodes.length > 1 && (
-                          <Text style={styles.codeLabel}>
-                            {idx === 0 ? 'Your code' : assignedCodes.length > 2 ? `Friend ${idx}'s code` : "Friend's code"}
-                          </Text>
-                        )}
-                        <TouchableOpacity
-                          style={styles.codeBox}
-                          activeOpacity={0.7}
-                          onPress={async () => {
-                            await Clipboard.setStringAsync(code);
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            setCopiedIdx(idx);
-                            setTimeout(() => setCopiedIdx(null), 1500);
-                          }}
-                        >
-                          <Text style={styles.codeText}>{code}</Text>
-                          <View style={styles.codeCopy}>
-                            <Icon name={copiedIdx === idx ? 'check' : 'clipboard'} size={14} color={C.accent} />
-                            <Text style={styles.codeCopyText}>{copiedIdx === idx ? 'Copied' : 'Copy'}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                    {assignedCodes.length === 1 && (circuit.guest_count ?? 0) > 0 && circuit.code_mode !== 'per_person' && (
-                      <Text style={styles.stepNote}>
-                        This code covers you + {circuit.guest_count} friend{(circuit.guest_count ?? 0) > 1 ? 's' : ''}.
-                      </Text>
-                    )}
-                  </>
+                <Text style={styles.stepText}>Here's what {circuit.business?.business_name ?? 'the business'} sent you:</Text>
+                {accessDetails ? (
+                  <TouchableOpacity
+                    style={styles.detailsBox}
+                    activeOpacity={0.7}
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(accessDetails);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      setDetailsCopied(true);
+                      setTimeout(() => setDetailsCopied(false), 1500);
+                    }}
+                  >
+                    <Text style={styles.detailsText} selectable>{accessDetails}</Text>
+                    <View style={styles.codeCopy}>
+                      <Icon name={detailsCopied ? 'check' : 'clipboard'} size={14} color={C.accent} />
+                      <Text style={styles.codeCopyText}>{detailsCopied ? 'Copied' : 'Copy'}</Text>
+                    </View>
+                  </TouchableOpacity>
                 ) : (
-                  <Text style={styles.stepNote}>Your code will appear here shortly.</Text>
+                  <Text style={styles.stepNote}>Check with the business for your access details.</Text>
+                )}
+                {(circuit.guest_count ?? 0) > 0 && (
+                  <Text style={styles.stepNote}>
+                    Covers you + {circuit.guest_count} friend{(circuit.guest_count ?? 0) > 1 ? 's' : ''}.
+                  </Text>
                 )}
                 {circuit.event_link ? (
                   <TouchableOpacity onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.7}>
@@ -634,7 +563,7 @@ export default function CircuitDetailScreen() {
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>2</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Tap the button below to let us know what day you booked for.</Text>
+                <Text style={styles.stepText}>Book your spot, then tap the button below to tell us what day you're going.</Text>
               </View>
             </View>
 
@@ -785,7 +714,7 @@ export default function CircuitDetailScreen() {
         ) : null}
 
 
-        {hasClaimed && redemptionStatus === 'claimed' && (
+        {(isRequested || isApproved) && (
           <>
             <TouchableOpacity
               style={styles.unclaimBtn}
@@ -794,7 +723,7 @@ export default function CircuitDetailScreen() {
               <Text style={styles.unclaimBtnText}>Report an issue</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.unclaimBtn} onPress={() => setShowUnclaimModal(true)}>
-              <Text style={styles.unclaimBtnText}>Unclaim</Text>
+              <Text style={styles.unclaimBtnText}>{isRequested ? 'Withdraw request' : 'Give up my spot'}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -818,7 +747,7 @@ export default function CircuitDetailScreen() {
           <View style={styles.infoNote}>
             <Text style={styles.infoNoteText}>This opp is only available to Creators</Text>
           </View>
-        ) : hasClaimed && redemptionStatus === 'claimed' ? (
+        ) : isApproved ? (
           <TouchableOpacity style={styles.button} onPress={() => setShowBookModal(true)}>
             <Text style={styles.buttonText}>I booked tickets on…</Text>
           </TouchableOpacity>
@@ -836,16 +765,17 @@ export default function CircuitDetailScreen() {
           >
             <Text style={styles.buttonText}>Submit post</Text>
           </TouchableOpacity>
-        ) : hasClaimed ? null
+        ) : hasClaimed && !isClosedRequest ? null
+        : isClosedRequest && !canRequestAgain ? null // declined
         : isFull ? (
           <View style={styles.ineligibleNote}>
             <Text style={styles.ineligibleText}>No spots left</Text>
-            <Text style={styles.ineligibleSub}>All creator spots for this current have been claimed</Text>
+            <Text style={styles.ineligibleSub}>All creator spots for this current have been filled</Text>
           </View>
         ) : isExpired ? (
           <View style={styles.ineligibleNote}>
             <Text style={styles.ineligibleText}>This current has expired</Text>
-            <Text style={styles.ineligibleSub}>The business can no longer accept new claims</Text>
+            <Text style={styles.ineligibleSub}>The business is no longer accepting requests</Text>
           </View>
         ) : eligStatus === 'soon' ? (
           <View style={styles.ineligibleNote}>
@@ -863,7 +793,7 @@ export default function CircuitDetailScreen() {
             onPress={() => creatorStatus === 'pending' ? setShowPendingModal(true) : setShowClaimModal(true)}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>Claim this current</Text>
+            <Text style={styles.buttonText}>{canRequestAgain ? 'Request again' : 'Request to join'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -890,12 +820,12 @@ export default function CircuitDetailScreen() {
       <Modal visible={showClaimModal} transparent animationType="fade" onRequestClose={() => setShowClaimModal(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowClaimModal(false)}>
           <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>You sure?</Text>
+            <Text style={styles.modalTitle}>Request to join?</Text>
 
             <View style={styles.claimRow}>
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
-                <Text style={styles.claimBold}>You'll get a redemption code</Text> for free tickets to the event.
+                <Text style={styles.claimBold}>The business reviews your profile</Text> and, if approved, sends you access details (a code, a list spot, or a ticket link).
               </Text>
             </View>
             <View style={styles.claimRow}>
@@ -917,8 +847,8 @@ export default function CircuitDetailScreen() {
                 No-shows or skipping the post can get you removed from the app.
               </Text>
             </View>
-            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); handleClaim(); }} disabled={loading}>
-              <Text style={styles.buttonText}>{loading ? 'Claiming…' : 'I understand, claim this current'}</Text>
+            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); handleRequest(); }} disabled={loading}>
+              <Text style={styles.buttonText}>{loading ? 'Sending…' : 'I understand, send request'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowClaimModal(false)}>
               <Text style={styles.modalCancelText}>Never mind</Text>
@@ -933,10 +863,12 @@ export default function CircuitDetailScreen() {
           <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Are you sure?</Text>
             <Text style={styles.modalBody}>
-              This will increase your chances of being removed from the app. By unclaiming, you're freeing this spot for another creator.
+              {isRequested
+                ? "The business won't see your request anymore."
+                : "Backing out after being approved can count against you. You're freeing this spot for another creator."}
             </Text>
-            <TouchableOpacity style={[styles.unclaimConfirmBtn, loading && styles.buttonDisabled]} onPress={handleUnclaim} disabled={loading}>
-              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Unclaiming…' : 'Yes, unclaim'}</Text>
+            <TouchableOpacity style={[styles.unclaimConfirmBtn, loading && styles.buttonDisabled]} onPress={handleWithdraw} disabled={loading}>
+              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? 'Yes, withdraw' : 'Yes, give up my spot'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowUnclaimModal(false)}>
               <Text style={styles.modalCancelText}>Nevermind</Text>
@@ -1087,7 +1019,11 @@ const styles = StyleSheet.create({
     borderRadius: R.md, paddingVertical: 12, paddingHorizontal: 14, marginTop: 8, marginBottom: 8,
   },
   codeText: { fontFamily: F.monoBold, fontSize: 20, letterSpacing: 2, color: C.accent },
-  codeLabel: { fontFamily: F.bodySemi, fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 2 },
+  detailsBox: {
+    marginTop: 8, padding: 14, borderRadius: R.md, backgroundColor: C.accentTint,
+    borderWidth: 1.5, borderColor: C.accentSoft, gap: 8,
+  },
+  detailsText: { fontFamily: F.bodySemi, fontSize: 15, color: C.ink, lineHeight: 21 },
   codeCopy: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   codeCopyText: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent },
   eventLinkText: { fontFamily: F.bodySemi, fontSize: 14, color: C.accent, marginTop: 2 },

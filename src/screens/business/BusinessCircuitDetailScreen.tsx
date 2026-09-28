@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { Circuit, Post } from '../../types';
+import { Circuit, Post, FILLED_STATUSES } from '../../types';
+import RequestsSection, { type RequestRow } from '../../components/RequestsSection';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
 
@@ -230,6 +231,10 @@ const eStyles = StyleSheet.create({
 // ─── Main screen ──────────────────────────────────────────────────────────────
 interface RedemptionWithRating {
   id: string;
+  status: any;
+  requested_at: string | null;
+  claimed_at: string | null;
+  access_details: string | null;
   creator_id: string | null;
   business_rating: number | null;
   business_rated_at: string | null;
@@ -277,7 +282,7 @@ export default function BusinessCircuitDetailScreen() {
 
     const claimsRes = await supabase
       .from('redemptions')
-      .select('id, status, creator_id, business_rating, business_rated_at')
+      .select('id, status, creator_id, business_rating, business_rated_at, requested_at, claimed_at, access_details')
       .eq('circuit_id', route.params.circuit.id);
     const redemptionData: RedemptionWithRating[] = claimsRes.data ?? [];
     const redemptionIds = redemptionData.map((r: any) => r.id);
@@ -289,7 +294,7 @@ export default function BusinessCircuitDetailScreen() {
         ? supabase.from('posts').select('id, redemption_id, creator_id, video_url, platform, views, likes, comments, submitted_at').in('redemption_id', redemptionIds)
         : Promise.resolve({ data: [] as any[] }),
       creatorIds.length > 0
-        ? supabase.from('creators').select('id, instagram_handle, tiktok_handle, profile_id, profile:profiles(id, full_name)').in('id', creatorIds)
+        ? supabase.from('creators').select('*, profile:profiles(id, full_name)').in('id', creatorIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
@@ -331,8 +336,9 @@ export default function BusinessCircuitDetailScreen() {
       };
     });
     setPosts(postList);
+    const filled = redemptionData.filter((r: any) => FILLED_STATUSES.includes(r.status));
     setStats({
-      claims: redemptionData.length,
+      claims: filled.length,
       checkins: redemptionData.filter((r: any) => r.status === 'checked_in' || r.status === 'completed').length,
       posts: postList.length,
       views: postList.reduce((s: number, p: any) => s + (p.views ?? 0), 0),
@@ -345,7 +351,7 @@ export default function BusinessCircuitDetailScreen() {
   async function handleDelete() {
     const claimCount = stats.claims;
     const message = claimCount > 0
-      ? `${claimCount} creator${claimCount > 1 ? 's have' : ' has'} already claimed this opp. Are you sure you want to delete it?`
+      ? `${claimCount} creator${claimCount > 1 ? 's have' : ' has'} already been approved for this opp. Are you sure you want to delete it?`
       : 'Are you sure you want to delete this current? This cannot be undone.';
 
     Alert.alert('Delete current', message, [
@@ -473,13 +479,22 @@ export default function BusinessCircuitDetailScreen() {
             <Text style={styles.circuitTitle}>{circuit.title}</Text>
             {!!circuit.description && <Text style={styles.circuitDesc}>{circuit.description}</Text>}
 
+            <RequestsSection
+              circuit={circuit}
+              rows={redemptions as unknown as RequestRow[]}
+              onChanged={loadData}
+              onOpenCreator={creatorId => navigation.navigate('CreatorPublicProfile', { creatorId })}
+            />
+
             <View style={styles.statsRow}>
               {[
                 {
-                  num: stats.claims, label: 'Claims',
+                  num: stats.claims, label: 'Approved',
                   onPress: () => setCreatorListModal({
-                    title: 'Claims',
-                    creators: redemptions.map((r: any) => r.creator).filter(Boolean),
+                    title: 'Approved',
+                    creators: redemptions
+                      .filter((r: any) => FILLED_STATUSES.includes(r.status))
+                      .map((r: any) => r.creator).filter(Boolean),
                   }),
                 },
                 {

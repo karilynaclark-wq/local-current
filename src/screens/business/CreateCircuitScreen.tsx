@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { RedemptionType } from '../../types';
 import { trackEvent } from '../../lib/analytics';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
@@ -25,22 +24,6 @@ const GUEST_OPTIONS = [
   { label: '+ 9 friends', value: 9 },
   { label: '+ 10 friends', value: 10 },
 ];
-
-// How redemption codes map to creators:
-//  shared      – one code for every creator
-//  per_creator – one code per creator (covers them + any friends)
-//  per_person  – one code per person (creator + each friend)
-type CodeMode = 'shared' | 'per_creator' | 'per_person';
-
-function codesPerCreator(mode: CodeMode | null, guests: number): number {
-  if (mode === 'per_person') return 1 + guests;
-  return 1;
-}
-
-function parseCodes(text: string): string[] {
-  return text.split('\n').map(c => c.trim()).filter(Boolean);
-}
-
 
 function InfoModal({ visible, title, body, onClose }: { visible: boolean; title: string; body: string; onClose: () => void }) {
   return (
@@ -90,14 +73,11 @@ export default function CreateCircuitScreen() {
   const [maxRedemptions, setMaxRedemptions] = useState<number | null>(null);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
   const [guestCount, setGuestCount] = useState<number>(1); // +1 friend is the most common offer
-  const [codeMode, setCodeMode] = useState<CodeMode | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<('tiktok' | 'instagram')[]>([]);
   const [activePlatform, setActivePlatform] = useState<'tiktok' | 'instagram' | null>(null);
   const [platformFollowers, setPlatformFollowers] = useState<{ tiktok: string[]; instagram: string[] }>({ tiktok: [], instagram: [] });
 
   // Step 3
-  const [redemptionType, setRedemptionType] = useState<RedemptionType>('code');
-  const [codes, setCodes] = useState('');
   const [creatorNotes, setCreatorNotes] = useState('');
   const [startMonth, setStartMonth] = useState('');
   const [startDay, setStartDay] = useState('');
@@ -122,14 +102,6 @@ export default function CreateCircuitScreen() {
         if (platformFollowers[p].length === 0) {
           return `Please select a follower range for ${p === 'tiktok' ? 'TikTok' : 'Instagram'}.`;
         }
-      }
-      if (!codeMode) return 'Please choose how creators will redeem.';
-      const list = parseCodes(codes);
-      if (codeMode === 'shared') {
-        if (list.length !== 1) return 'Please enter the one code everyone will use.';
-      } else {
-        const needed = maxRedemptions * codesPerCreator(codeMode, guestCount);
-        if (list.length < needed) return `Please add ${needed} codes — you've added ${list.length}.`;
       }
     }
     return null;
@@ -160,36 +132,18 @@ export default function CreateCircuitScreen() {
         event_link: eventLink.trim() || null,
         description,
         creator_notes: creatorNotes.trim() || null,
-        redemption_type: redemptionType,
+        redemption_type: 'code', // legacy column; access details are sent on approval
         eligibility_min_followers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
         max_redemptions: maxRedemptions,
         guest_count: guestCount,
-        code_mode: codeMode,
         starts_at: new Date().toISOString().split('T')[0],
         expires_at: null,
         is_active: true,
       }).select().single();
 
       if (error) throw error;
-
-      if (redemptionType === 'code' && codes.trim()) {
-        const codeList = parseCodes(codes);
-        await supabase.from('circuit_codes').insert(
-          codeList.map(code => ({ circuit_id: circuit.id, code, is_used: false }))
-        );
-      }
-
-      if (redemptionType === 'voucher' && maxRedemptions) {
-        await supabase.from('circuit_codes').insert(
-          Array.from({ length: maxRedemptions }, () => ({
-            circuit_id: circuit.id,
-            code: `VCH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-            is_used: false,
-          }))
-        );
-      }
 
       // Notify eligible creators server-side — push tokens never leave the server
       supabase.functions.invoke('notify-new-circuit', {
@@ -203,11 +157,11 @@ export default function CreateCircuitScreen() {
 
       trackEvent('circuit_created', {
         circuit_id: circuit.id,
-        redemption_type: redemptionType,
+        flow: 'request',
         max_redemptions: maxRedemptions,
         follower_ranges: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))],
       });
-      navigation.navigate('CircuitLive', { redemptionType });
+      navigation.navigate('CircuitLive');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -357,7 +311,7 @@ export default function CreateCircuitScreen() {
                 </>
               )}
 
-              <Text style={styles.label}>How many creators can claim this? *</Text>
+              <Text style={styles.label}>How many creators do you want? *</Text>
               <TouchableOpacity style={styles.picker} onPress={() => setShowCreatorPicker(!showCreatorPicker)}>
                 <Text style={maxRedemptions ? styles.pickerValue : styles.pickerPlaceholder}>
                   {maxRedemptions ? `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''}` : 'Select a number'}
@@ -389,10 +343,7 @@ export default function CreateCircuitScreen() {
                     <TouchableOpacity
                       key={opt.value}
                       style={[styles.chip, on && styles.chipSelected]}
-                      onPress={() => {
-                        setGuestCount(opt.value);
-                        if (opt.value === 0 && codeMode === 'per_person') setCodeMode('per_creator');
-                      }}
+                      onPress={() => setGuestCount(opt.value)}
                     >
                       <Text style={[styles.chipText, on && styles.chipTextSelected]}>{label}</Text>
                     </TouchableOpacity>
@@ -400,104 +351,12 @@ export default function CreateCircuitScreen() {
                 })}
               </View>
 
-              <Text style={styles.label}>How will creators redeem it? *</Text>
-              {(() => {
-                const friends = guestCount > 0
-                  ? ` + ${guestCount === 1 ? '1 friend' : `${guestCount} friends`}`
-                  : '';
-                const exampleCodes = Array.from({ length: 1 + guestCount }, (_, k) => `CODE${k + 1}`).join(' + ');
-                return [
-                  { mode: 'shared' as CodeMode, title: 'Same code for everyone', sub: 'e.g. every creator uses SUMMER25' },
-                  {
-                    mode: 'per_creator' as CodeMode,
-                    title: 'One code per creator',
-                    sub: `e.g. Creator 1 gets CODE1, good for them${friends}`,
-                  },
-                  ...(guestCount > 0 ? [{
-                    mode: 'per_person' as CodeMode,
-                    title: 'One code per ticket',
-                    sub: `e.g. Creator 1 gets ${exampleCodes} — one for them, one per friend`,
-                  }] : []),
-                ];
-              })().map(opt => {
-                const on = codeMode === opt.mode;
-                return (
-                  <TouchableOpacity
-                    key={opt.mode}
-                    style={[styles.optionCard, on && styles.optionCardSelected]}
-                    onPress={() => setCodeMode(opt.mode)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.radio, on && styles.radioOn]}>{on && <View style={styles.radioDot} />}</View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.optionTitle}>{opt.title}</Text>
-                      <Text style={styles.optionSub}>{opt.sub}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-
-              {codeMode === 'shared' && (
-                <>
-                  <Text style={styles.label}>The code *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={codes}
-                    onChangeText={setCodes}
-                    placeholder="e.g. SUMMER25"
-                    placeholderTextColor={C.muted2}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                  />
-                </>
-              )}
-
-              {(codeMode === 'per_creator' || codeMode === 'per_person') && (() => {
-                const perCreator = codesPerCreator(codeMode, guestCount);
-                const needed = maxRedemptions ? maxRedemptions * perCreator : null;
-                const added = parseCodes(codes).length;
-                const fits = Math.floor(added / perCreator);
-                return (
-                  <>
-                    <Text style={styles.label}>
-                      {needed
-                        ? `Paste ${needed} code${needed > 1 ? 's' : ''}${perCreator > 1 ? ` (${maxRedemptions} creators × ${perCreator} tickets)` : ''} *`
-                        : 'Paste your codes *'}
-                    </Text>
-                    <Text style={styles.hint}>One code per line</Text>
-                    <TextInput
-                      style={[styles.input, styles.multiline]}
-                      value={codes}
-                      onChangeText={setCodes}
-                      placeholder={'CODE001\nCODE002\nCODE003'}
-                      placeholderTextColor={C.muted2}
-                      multiline
-                      numberOfLines={5}
-                      autoCapitalize="characters"
-                      autoCorrect={false}
-                    />
-                    {needed != null && (
-                      <View style={styles.codeCountRow}>
-                        <Text style={[styles.codeCount, added >= needed && styles.codeCountOk]}>
-                          {added >= needed ? '✓ ' : ''}{added} of {needed} added
-                        </Text>
-                        {added < needed && fits >= 1 && fits < (maxRedemptions ?? 0) && (
-                          <TouchableOpacity onPress={() => setMaxRedemptions(fits)} activeOpacity={0.7}>
-                            <Text style={styles.reduceLink}>Reduce to {fits} creator{fits > 1 ? 's' : ''}</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
-                  </>
-                );
-              })()}
-
               <Text style={styles.label}>Any notes or additional info for creators?</Text>
               <TextInput
                 style={[styles.input, styles.multiline]}
                 value={creatorNotes}
                 onChangeText={setCreatorNotes}
-                placeholder="Where to put the code at checkout, anyone you'd like them to connect with onsite, etc."
+                placeholder="Anything creators should know — parking, who to ask for onsite, what to film, etc."
                 placeholderTextColor={C.muted2}
                 multiline
                 numberOfLines={4}
@@ -595,24 +454,6 @@ const styles = StyleSheet.create({
   },
   multiline: { height: 110, textAlignVertical: 'top' },
 
-  optionCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line2,
-    borderRadius: R.md, padding: 14, marginBottom: 8,
-  },
-  optionCardSelected: { borderColor: C.accent, backgroundColor: C.accentTint },
-  radio: {
-    width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: C.line2,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: C.card,
-  },
-  radioOn: { borderColor: C.accent },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.accent },
-  optionTitle: { fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
-  optionSub: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 2 },
-  codeCountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  codeCount: { fontFamily: F.bodySemi, fontSize: 13, color: C.muted },
-  codeCountOk: { color: C.ok },
-  reduceLink: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent, textDecorationLine: 'underline' },
 
   picker: {
     borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, backgroundColor: C.card,

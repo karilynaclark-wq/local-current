@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { requestChipFor } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { StatusChip } from '../../components/UI';
@@ -36,11 +37,8 @@ function neighborhoodFromAddress(address?: string): string | null {
   return match ? (ZIP_TO_NEIGHBORHOOD[match[1]] ?? null) : null;
 }
 
-function chipStatusFor(r: any): 'claimed' | 'redeemed' | 'completed' | 'active' {
-  const hasPost = (r.posts?.length ?? 0) > 0;
-  if (r.status === 'completed') return hasPost ? 'completed' : 'redeemed';
-  if (r.status === 'checked_in') return 'claimed';
-  return 'claimed';
+function chipStatusFor(r: any) {
+  return requestChipFor(r.status, (r.posts?.length ?? 0) > 0);
 }
 
 export default function MyRedemptionsScreen() {

@@ -6,6 +6,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
+import { countFilled } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 import { StatusChip } from '../../components/UI';
@@ -64,11 +65,11 @@ export default function BusinessProfileScreen() {
 
       const { data: bizCircuits } = await supabase
         .from('circuits')
-        .select('id, title, is_active, created_at, redemptions(id)')
+        .select('id, title, is_active, created_at, redemptions(id, status)')
         .eq('business_id', biz.id)
         .order('created_at', { ascending: false });
       const sorted = (bizCircuits ?? []).sort((a: any, b: any) => {
-        const rank = (c: any) => c.is_active ? 0 : (c.redemptions?.length ?? 0) > 0 ? 2 : 1;
+        const rank = (c: any) => c.is_active ? 0 : countFilled(c.redemptions) > 0 ? 2 : 1;
         return rank(a) - rank(b);
       });
       setCircuits(sorted);
@@ -250,7 +251,7 @@ export default function BusinessProfileScreen() {
             ) : (
               <View style={styles.grid}>
                 {circuits.map((item) => {
-                  const hasRedemptions = (item.redemptions?.length ?? 0) > 0;
+                  const hasRedemptions = countFilled(item.redemptions) > 0;
                   const isCompleted = !item.is_active && hasRedemptions;
                   const status = item.is_active ? 'active' : isCompleted ? 'completed' : 'inactive';
                   const cardBg = status === 'active' ? C.okSoft : status === 'completed' ? C.claimedBg : C.accentTint;
