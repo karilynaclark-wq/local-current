@@ -14,7 +14,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
+import { syncCreatorFromVerified, clearCreatorVerified } from '../_shared/creatorSync.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -231,6 +231,7 @@ serve(async (req) => {
       if (action === 'disconnect') {
         await db.from('social_connections')
           .delete().eq('profile_id', userId).eq('platform', 'tiktok');
+        await clearCreatorVerified(db, userId, 'tiktok');
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...CORS, 'Content-Type': 'application/json' },
         });

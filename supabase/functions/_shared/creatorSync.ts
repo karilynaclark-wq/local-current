@@ -49,4 +49,11 @@ export async function syncCreatorFromVerified(
   }
 
   await db.from('creators').update(updates).eq('id', creator.id);
+  // Separate write so a missing column (migration not yet run) can't block
+  // the handle/tier update above.
+  await db.from('creators').update({ [`${platform}_verified`]: true }).eq('id', creator.id);
+}
+
+export async function clearCreatorVerified(db: Db, profileId: string, platform: 'tiktok' | 'instagram') {
+  await db.from('creators').update({ [`${platform}_verified`]: false }).eq('profile_id', profileId);
 }

@@ -29,6 +29,15 @@ const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
   '60659': 'West Ridge', '60660': 'Edgewater', '60661': 'West Loop',
 };
 
+function VerifiedMark() {
+  return (
+    <View style={styles.verifiedBadge}>
+      <Icon name="check" size={10} color={C.ok} />
+      <Text style={styles.verifiedText}>Verified</Text>
+    </View>
+  );
+}
+
 export default function CreatorPublicProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -89,6 +98,14 @@ export default function CreatorPublicProfileScreen() {
       instagram_handle: cr.instagram_handle ?? '',
       tiktok_handle: cr.tiktok_handle ?? '',
       follower_range: cr.follower_range ?? '',
+      // Each platform's own tier: main platform uses follower_range, the other
+      // uses secondary_follower_range.
+      tiktok_range: (cr.main_platform ?? '').toLowerCase() === 'instagram'
+        ? (cr.secondary_follower_range ?? '') : (cr.follower_range ?? ''),
+      instagram_range: (cr.main_platform ?? '').toLowerCase() === 'instagram'
+        ? (cr.follower_range ?? '') : (cr.secondary_follower_range ?? ''),
+      tiktok_verified: !!cr.tiktok_verified,
+      instagram_verified: !!cr.instagram_verified,
       zip_code: cr.zip_code ?? '',
       city: cr.city ?? '',
       avg_rating: avgRating,
@@ -180,13 +197,15 @@ export default function CreatorPublicProfileScreen() {
             {creator?.tiktok_handle ? (
               <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${creator.tiktok_handle.replace('@', '')}`)} activeOpacity={0.7}>
                 <SocialIcon kind="tt" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>{creator.tiktok_handle}{creator.follower_range ? `  ·  ${creator.follower_range}` : ''}</Text>
+                <Text style={styles.socialPillText}>{creator.tiktok_handle}{creator.tiktok_range ? `  ·  ${creator.tiktok_range}` : ''}</Text>
+                {creator.tiktok_verified && <VerifiedMark />}
               </TouchableOpacity>
             ) : null}
             {creator?.instagram_handle ? (
               <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.instagram.com/${creator.instagram_handle.replace('@', '')}`)} activeOpacity={0.7}>
                 <SocialIcon kind="ig" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>{creator.instagram_handle}{creator.follower_range ? `  ·  ${creator.follower_range}` : ''}</Text>
+                <Text style={styles.socialPillText}>{creator.instagram_handle}{creator.instagram_range ? `  ·  ${creator.instagram_range}` : ''}</Text>
+                {creator.instagram_verified && <VerifiedMark />}
               </TouchableOpacity>
             ) : null}
           </View>
@@ -367,6 +386,11 @@ const styles = StyleSheet.create({
     borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7,
   },
   socialPillText: { fontFamily: F.bodySemi, fontSize: 13, color: C.ink },
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: C.okSoft, borderRadius: R.sm, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  verifiedText: { fontFamily: F.bodySemi, fontSize: 10, color: C.ok },
   tabBar: {
     flexDirection: 'row', marginHorizontal: 16, marginTop: 20,
     backgroundColor: C.card, borderRadius: R.md, padding: 4,

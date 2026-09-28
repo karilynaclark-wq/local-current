@@ -32,6 +32,8 @@ interface CreatorData {
   instagram_handle: string;
   tiktok_handle: string;
   follower_range: string;
+  tiktok_range: string;
+  instagram_range: string;
   avg_rating: number;
   rating_count: number;
   avatar_url: string | null;
@@ -178,6 +180,10 @@ export default function CreatorProfileScreen() {
         instagram_handle: cr.instagram_handle ?? '',
         tiktok_handle: cr.tiktok_handle ?? '',
         follower_range: cr.follower_range ?? '',
+        tiktok_range: (cr.main_platform ?? '').toLowerCase() === 'instagram'
+          ? (cr.secondary_follower_range ?? '') : (cr.follower_range ?? ''),
+        instagram_range: (cr.main_platform ?? '').toLowerCase() === 'instagram'
+          ? (cr.follower_range ?? '') : (cr.secondary_follower_range ?? ''),
         avg_rating: avgRating,
         rating_count: ratingCount,
         avatar_url: prof?.avatar_url ?? null,
@@ -325,7 +331,7 @@ export default function CreatorProfileScreen() {
               <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${creator.tiktok_handle.replace('@', '')}`)} activeOpacity={0.7}>
                 <SocialIcon kind="tt" size={16} color={C.ink} />
                 <Text style={styles.socialPillText}>
-                  {creator.tiktok_handle}{creator.follower_range ? `  ·  ${creator.follower_range}` : ''}
+                  {creator.tiktok_handle}{creator.tiktok_range ? `  ·  ${creator.tiktok_range}` : ''}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -333,7 +339,7 @@ export default function CreatorProfileScreen() {
               <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.instagram.com/${creator.instagram_handle.replace('@', '')}`)} activeOpacity={0.7}>
                 <SocialIcon kind="ig" size={16} color={C.ink} />
                 <Text style={styles.socialPillText}>
-                  {creator.instagram_handle}{creator.follower_range ? `  ·  ${creator.follower_range}` : ''}
+                  {creator.instagram_handle}{creator.instagram_range ? `  ·  ${creator.instagram_range}` : ''}
                 </Text>
               </TouchableOpacity>
             ) : null}
