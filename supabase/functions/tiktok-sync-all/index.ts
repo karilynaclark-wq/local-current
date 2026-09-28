@@ -9,6 +9,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
 
 const TT_TOKEN = 'https://open.tiktokapis.com/v2/oauth/token/';
 const TT_USER = 'https://open.tiktokapis.com/v2/user/info/';
@@ -121,6 +122,7 @@ serve(async (req) => {
         likes_count: data.likes_count,
         media_count: data.media_count,
       });
+      await syncCreatorFromVerified(db, conn.profile_id, 'tiktok', data.username, data.follower_count);
       synced++;
     } catch (err) {
       console.error(`sync failed for connection ${conn.id}:`, (err as Error).message);

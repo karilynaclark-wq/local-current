@@ -89,6 +89,10 @@ export default function CreatorProfileScreen() {
   const [connecting, setConnecting] = useState<Platform | null>(null);
   const [manualFor, setManualFor] = useState<Platform | null>(null);
 
+  // Verified (OAuth) accounts replace the manual handle/range from sign-up.
+  const isVerified = (p: Platform) =>
+    connections.some(c => c.platform === p && c.connection_type === 'oauth');
+
   async function handleConnect(platform: Platform) {
     const { label, connect } = PLATFORM_API[platform];
     setConnecting(platform);
@@ -108,18 +112,6 @@ export default function CreatorProfileScreen() {
       } else if (result === 'error') {
         Alert.alert('Could not connect', `${label} connection failed. Please try again.`);
       }
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setConnecting(null);
-    }
-  }
-
-  async function handleSync(platform: Platform) {
-    setConnecting(platform);
-    try {
-      await PLATFORM_API[platform].sync();
-      setConnections(await getConnections());
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -147,7 +139,7 @@ export default function CreatorProfileScreen() {
     setConnections(await getConnections());
   }
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (resync = false) => {
     setRefreshing(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setRefreshing(false); return; }
@@ -160,7 +152,17 @@ export default function CreatorProfileScreen() {
 
     setViewerRole(prof?.role ?? null);
 
-    try { setConnections(await getConnections()); } catch (_) { /* table may be empty */ }
+    try {
+      const conns = await getConnections();
+      setConnections(conns);
+      // Re-pull verified stats in the background, then refresh the rows.
+      const verified = conns.filter(c => c.connection_type === 'oauth');
+      if (resync && verified.length) {
+        Promise.all(verified.map(c => PLATFORM_API[c.platform].sync()))
+          .then(async () => setConnections(await getConnections()))
+          .catch(() => { /* stale stats are fine; daily cron catches up */ });
+      }
+    } catch (_) { /* table may be empty */ }
 
     if (cr) {
       const { data: ratings } = await supabase.from('redemptions').select('business_rating').eq('creator_id', cr.id).not('business_rating', 'is', null);
@@ -276,7 +278,7 @@ export default function CreatorProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor={C.accent} />} showsVerticalScrollIndicator={false}>
+      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.accent} />} showsVerticalScrollIndicator={false}>
         {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.profileRow}>
@@ -319,7 +321,7 @@ export default function CreatorProfileScreen() {
 
           {/* Social pills */}
           <View style={styles.socialRow}>
-            {creator?.tiktok_handle ? (
+            {creator?.tiktok_handle && !isVerified('tiktok') ? (
               <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${creator.tiktok_handle.replace('@', '')}`)} activeOpacity={0.7}>
                 <SocialIcon kind="tt" size={16} color={C.ink} />
                 <Text style={styles.socialPillText}>
@@ -327,7 +329,7 @@ export default function CreatorProfileScreen() {
                 </Text>
               </TouchableOpacity>
             ) : null}
-            {creator?.instagram_handle ? (
+            {creator?.instagram_handle && !isVerified('instagram') ? (
               <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.instagram.com/${creator.instagram_handle.replace('@', '')}`)} activeOpacity={0.7}>
                 <SocialIcon kind="ig" size={16} color={C.ink} />
                 <Text style={styles.socialPillText}>
@@ -347,7 +349,6 @@ export default function CreatorProfileScreen() {
                   key={platform}
                   conn={conn}
                   busy={connecting === platform}
-                  onSync={() => handleSync(platform)}
                   onDisconnect={() => handleDisconnect(platform)}
                   onReconnect={() => handleConnect(platform)}
                 />

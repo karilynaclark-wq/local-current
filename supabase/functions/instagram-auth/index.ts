@@ -16,6 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -203,6 +204,7 @@ serve(async (req) => {
       }, { onConflict: 'profile_id,platform' });
 
       await writeSnapshot(db, stateRow.profile_id, data);
+      await syncCreatorFromVerified(db, stateRow.profile_id, 'instagram', data.username, data.follower_count);
       return Response.redirect(`${APP_DEEP_LINK}?status=success`, 302);
     }
 
@@ -242,6 +244,7 @@ serve(async (req) => {
           .update({ ...data, needs_reconnect: false, last_synced_at: new Date().toISOString() })
           .eq('id', conn.id);
         await writeSnapshot(db, userId, data);
+        await syncCreatorFromVerified(db, userId, 'instagram', data.username, data.follower_count);
         return json({ success: true, ...data });
       } catch (_) {
         await db.from('social_connections').update({ needs_reconnect: true }).eq('id', conn.id);

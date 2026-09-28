@@ -14,6 +14,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -211,6 +212,7 @@ serve(async (req) => {
       }, { onConflict: 'profile_id,platform' });
 
       await writeSnapshot(db, stateRow.profile_id, data);
+      await syncCreatorFromVerified(db, stateRow.profile_id, 'tiktok', data.username, data.follower_count);
       await db.from('oauth_states').delete().eq('state', state);
 
       return Response.redirect(`${APP_DEEP_LINK}?status=success`, 302);
@@ -272,6 +274,7 @@ serve(async (req) => {
         .update({ ...data, needs_reconnect: false, last_synced_at: new Date().toISOString() })
         .eq('id', conn.id);
       await writeSnapshot(db, userId, data);
+      await syncCreatorFromVerified(db, userId, 'tiktok', data.username, data.follower_count);
 
       return new Response(JSON.stringify({ success: true, ...data }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },

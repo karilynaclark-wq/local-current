@@ -8,6 +8,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
 
 const IG_REFRESH = 'https://graph.instagram.com/refresh_access_token';
 const IG_GRAPH = 'https://graph.instagram.com';
@@ -95,6 +96,7 @@ serve(async (req) => {
         likes_count: 0,
         media_count: data.media_count,
       });
+      await syncCreatorFromVerified(db, conn.profile_id, 'instagram', data.username, data.follower_count);
       synced++;
     } catch (err) {
       console.error(`instagram sync failed for ${conn.id}:`, (err as Error).message);

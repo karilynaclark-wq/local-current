@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Linking,
   ActivityIndicator, KeyboardAvoidingView, Platform as RNPlatform,
 } from 'react-native';
 import { C, F, R } from '../theme';
@@ -15,10 +15,9 @@ import type { Platform, SocialConnection } from '../lib/socialConnect';
 const LABEL: Record<Platform, string> = { tiktok: 'TikTok', instagram: 'Instagram' };
 const KIND: Record<Platform, 'tt' | 'ig'> = { tiktok: 'tt', instagram: 'ig' };
 
-export function ConnectedAccountRow({ conn, busy, onSync, onDisconnect, onReconnect }: {
+export function ConnectedAccountRow({ conn, busy, onDisconnect, onReconnect }: {
   conn: SocialConnection;
   busy: boolean;
-  onSync?: () => void;
   onDisconnect: () => void;
   onReconnect?: () => void;
 }) {
@@ -56,8 +55,8 @@ export function ConnectedAccountRow({ conn, busy, onSync, onDisconnect, onReconn
         <ActivityIndicator color={C.accent} />
       ) : (
         <>
-          {verified && onSync && (
-            <TouchableOpacity onPress={onSync} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          {conn.profile_url && (
+            <TouchableOpacity onPress={() => Linking.openURL(conn.profile_url!)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Icon name="arrow" size={16} color={C.muted2} />
             </TouchableOpacity>
           )}
