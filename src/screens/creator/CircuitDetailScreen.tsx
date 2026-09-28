@@ -158,8 +158,10 @@ export default function CircuitDetailScreen() {
   const [creatorFollowerRange, setCreatorFollowerRange] = useState<string | null>(null);
   const [creatorFollowers, setCreatorFollowers] = useState<{ tiktok?: string; instagram?: string }>({});
   const [showReqModal, setShowReqModal] = useState(false);
-  const [assignedCode, setAssignedCode] = useState<string | null>(null);
-  const [codeCopied, setCodeCopied] = useState(false);
+  // One entry normally; several when the business gave a code per person
+  // (first is the creator's, the rest are for their friends).
+  const [assignedCodes, setAssignedCodes] = useState<string[]>([]);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [showBookModal, setShowBookModal] = useState(false);
   const [bookMonth, setBookMonth] = useState('');
   const [bookDay, setBookDay] = useState('');
@@ -220,12 +222,16 @@ export default function CircuitDetailScreen() {
                 }
                 // Fetch this creator's redemption code (unique per creator, or a
                 // single shared code if the business only supplied one).
-                supabase.from('circuit_codes').select('code, redemption_id').eq('circuit_id', circuit.id)
+                supabase.from('circuit_codes').select('id, code, redemption_id, created_at')
+                  .eq('circuit_id', circuit.id)
+                  .order('created_at', { ascending: true })
                   .then(({ data: codeRows }) => {
                     if (!codeRows || codeRows.length === 0) return;
-                    if (codeRows.length === 1) { setAssignedCode(codeRows[0].code); return; }
-                    const mine = codeRows.find(c => c.redemption_id === existing.id);
-                    setAssignedCode(mine?.code ?? null);
+                    if (circuit.code_mode === 'shared' || (!circuit.code_mode && codeRows.length === 1)) {
+                      setAssignedCodes([codeRows[0].code]);
+                      return;
+                    }
+                    setAssignedCodes(codeRows.filter(c => c.redemption_id === existing.id).map(c => c.code));
                   });
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
@@ -581,23 +587,39 @@ export default function CircuitDetailScreen() {
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>1</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.stepText}>Grab tickets ASAP. Use this code at checkout on the event page:</Text>
-                {assignedCode ? (
-                  <TouchableOpacity
-                    style={styles.codeBox}
-                    activeOpacity={0.7}
-                    onPress={async () => {
-                      await Clipboard.setStringAsync(assignedCode);
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      setCodeCopied(true);
-                      setTimeout(() => setCodeCopied(false), 1500);
-                    }}
-                  >
-                    <Text style={styles.codeText}>{assignedCode}</Text>
-                    <View style={styles.codeCopy}>
-                      <Icon name={codeCopied ? 'check' : 'clipboard'} size={14} color={C.accent} />
-                      <Text style={styles.codeCopyText}>{codeCopied ? 'Copied' : 'Copy'}</Text>
-                    </View>
-                  </TouchableOpacity>
+                {assignedCodes.length > 0 ? (
+                  <>
+                    {assignedCodes.map((code, idx) => (
+                      <View key={`${code}-${idx}`}>
+                        {assignedCodes.length > 1 && (
+                          <Text style={styles.codeLabel}>
+                            {idx === 0 ? 'Your code' : assignedCodes.length > 2 ? `Friend ${idx}'s code` : "Friend's code"}
+                          </Text>
+                        )}
+                        <TouchableOpacity
+                          style={styles.codeBox}
+                          activeOpacity={0.7}
+                          onPress={async () => {
+                            await Clipboard.setStringAsync(code);
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            setCopiedIdx(idx);
+                            setTimeout(() => setCopiedIdx(null), 1500);
+                          }}
+                        >
+                          <Text style={styles.codeText}>{code}</Text>
+                          <View style={styles.codeCopy}>
+                            <Icon name={copiedIdx === idx ? 'check' : 'clipboard'} size={14} color={C.accent} />
+                            <Text style={styles.codeCopyText}>{copiedIdx === idx ? 'Copied' : 'Copy'}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {assignedCodes.length === 1 && (circuit.guest_count ?? 0) > 0 && circuit.code_mode !== 'per_person' && (
+                      <Text style={styles.stepNote}>
+                        This code covers you + {circuit.guest_count} friend{(circuit.guest_count ?? 0) > 1 ? 's' : ''}.
+                      </Text>
+                    )}
+                  </>
                 ) : (
                   <Text style={styles.stepNote}>Your code will appear here shortly.</Text>
                 )}
@@ -1065,6 +1087,7 @@ const styles = StyleSheet.create({
     borderRadius: R.md, paddingVertical: 12, paddingHorizontal: 14, marginTop: 8, marginBottom: 8,
   },
   codeText: { fontFamily: F.monoBold, fontSize: 20, letterSpacing: 2, color: C.accent },
+  codeLabel: { fontFamily: F.bodySemi, fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 2 },
   codeCopy: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   codeCopyText: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent },
   eventLinkText: { fontFamily: F.bodySemi, fontSize: 14, color: C.accent, marginTop: 2 },
