@@ -401,21 +401,25 @@ export default function CreateCircuitScreen() {
               </View>
 
               <Text style={styles.label}>How will creators redeem it? *</Text>
-              {([
-                { mode: 'shared' as CodeMode, title: 'One code for everyone', sub: 'Every creator uses the same code' },
-                {
-                  mode: 'per_creator' as CodeMode,
-                  title: 'A code for each creator',
-                  sub: guestCount > 0
-                    ? `One code covers them + their friend${guestCount > 1 ? 's' : ''}`
-                    : 'Each creator gets their own code',
-                },
-                ...(guestCount > 0 ? [{
-                  mode: 'per_person' as CodeMode,
-                  title: 'A code for each person',
-                  sub: `Each creator gets ${1 + guestCount} codes — one for them, one per friend`,
-                }] : []),
-              ]).map(opt => {
+              {(() => {
+                const friends = guestCount > 0
+                  ? ` + ${guestCount === 1 ? '1 friend' : `${guestCount} friends`}`
+                  : '';
+                const exampleCodes = Array.from({ length: 1 + guestCount }, (_, k) => `CODE${k + 1}`).join(' + ');
+                return [
+                  { mode: 'shared' as CodeMode, title: 'Same code for everyone', sub: 'e.g. every creator uses SUMMER25' },
+                  {
+                    mode: 'per_creator' as CodeMode,
+                    title: 'One code per creator',
+                    sub: `e.g. Creator 1 gets CODE1, good for them${friends}`,
+                  },
+                  ...(guestCount > 0 ? [{
+                    mode: 'per_person' as CodeMode,
+                    title: 'One code per ticket',
+                    sub: `e.g. Creator 1 gets ${exampleCodes} — one for them, one per friend`,
+                  }] : []),
+                ];
+              })().map(opt => {
                 const on = codeMode === opt.mode;
                 return (
                   <TouchableOpacity
@@ -457,7 +461,7 @@ export default function CreateCircuitScreen() {
                   <>
                     <Text style={styles.label}>
                       {needed
-                        ? `Paste ${needed} code${needed > 1 ? 's' : ''}${perCreator > 1 ? ` (${maxRedemptions} creators × ${perCreator} people)` : ''} *`
+                        ? `Paste ${needed} code${needed > 1 ? 's' : ''}${perCreator > 1 ? ` (${maxRedemptions} creators × ${perCreator} tickets)` : ''} *`
                         : 'Paste your codes *'}
                     </Text>
                     <Text style={styles.hint}>One code per line</Text>
