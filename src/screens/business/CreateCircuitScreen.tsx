@@ -271,7 +271,6 @@ export default function CreateCircuitScreen() {
           {step === 2 && (
             <>
               <Text style={styles.label}>What platform would you like the video shared to? *</Text>
-              <Text style={styles.hint}>Pick one or both. Tap a platform to set its follower requirements.</Text>
               <View style={styles.chips}>
                 {(['TikTok', 'Instagram'] as const).map(p => {
                   const val = p.toLowerCase() as 'tiktok' | 'instagram';
