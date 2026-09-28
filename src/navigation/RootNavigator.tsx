@@ -43,9 +43,9 @@ const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 const ADMIN_EMAILS = ['hello@join-circuit.com'];
 
-function AuthStack() {
+function AuthStack({ initialRoute }: { initialRoute?: string } = {}) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
       <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
@@ -242,6 +242,9 @@ export default function RootNavigator() {
   const { session, profile, loading } = useAuth();
   const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
   const [creatorLoading, setCreatorLoading] = useState(false);
+  // Business accounts are created at step 1 of onboarding; keep them there
+  // until their businesses row exists.
+  const [hasBusiness, setHasBusiness] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -267,7 +270,22 @@ export default function RootNavigator() {
     }
   }, [session, profile]);
 
-  if (loading || creatorLoading) {
+  useEffect(() => {
+    if (session && profile?.role === 'business') {
+      supabase
+        .from('businesses')
+        .select('id')
+        .eq('profile_id', session.user.id)
+        .maybeSingle()
+        .then(({ data }) => setHasBusiness(!!data));
+    } else {
+      setHasBusiness(null);
+    }
+  }, [session, profile]);
+
+  const businessLoading = !!session && profile?.role === 'business' && hasBusiness === null;
+
+  if (loading || creatorLoading || businessLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={C.accent} />
@@ -278,7 +296,9 @@ export default function RootNavigator() {
   function renderStack() {
     if (!session || !profile) return <AuthStack />;
     if (ADMIN_EMAILS.includes(profile.email)) return <AdminStack />;
-    if (profile.role === 'business') return <BusinessTabs />;
+    if (profile.role === 'business') {
+      return hasBusiness ? <BusinessTabs /> : <AuthStack initialRoute="BusinessOnboarding" />;
+    }
     if (creatorStatus === 'approved' || creatorStatus === 'pending') return <CreatorTabs />;
     if (creatorStatus === 'rejected') return <CreatorPendingStack />;
     return <AuthStack />;

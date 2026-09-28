@@ -27,9 +27,16 @@ export async function syncCreatorFromVerified(
     .select('id, main_platform, secondary_platform')
     .eq('profile_id', profileId)
     .maybeSingle();
-  // No creator row yet (e.g. connecting mid-onboarding): onboarding saves the
-  // auto-filled values itself when it submits.
-  if (!creator) return;
+  if (!creator) {
+    // Not a creator — if it's a business, keep its tag handle in sync.
+    // (Mid-onboarding there's no row yet; onboarding saves the handle itself.)
+    if (username) {
+      await db.from('businesses')
+        .update({ [`${platform}_handle`]: username.replace(/^@/, '') })
+        .eq('profile_id', profileId);
+    }
+    return;
+  }
 
   const range = rangeFromCount(followerCount);
   const updates: Record<string, unknown> = {};
