@@ -5,6 +5,8 @@ import {
   Image, ActivityIndicator,
 } from 'react-native';
 import AtInput from '../../components/AtInput';
+import AddressFields from '../../components/AddressFields';
+import { EMPTY_ADDRESS, formatAddress, parseAddress, validateAddress, type AddressParts } from '../../lib/address';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { signOut } from '../../lib/auth';
@@ -36,7 +38,7 @@ export default function ProfileScreen() {
   const [businessName, setBusinessName] = useState('');
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState<AddressParts>(EMPTY_ADDRESS);
   const [bizInstagram, setBizInstagram] = useState('');
   const [bizTiktok, setBizTiktok] = useState('');
 
@@ -68,7 +70,7 @@ export default function ProfileScreen() {
         setBusinessName(biz.business_name ?? '');
         setWebsite(biz.website ?? '');
         setDescription(biz.description ?? '');
-        setAddress(biz.address ?? '');
+        setAddress(parseAddress(biz.address));
         setBizInstagram(biz.instagram_handle ?? '');
         setBizTiktok(biz.tiktok_handle ?? '');
       }
@@ -93,11 +95,20 @@ export default function ProfileScreen() {
         const { error } = await supabase.from('creators').update(updates).eq('profile_id', user.id);
         if (error) throw error;
       } else {
+        // Only enforce a complete address once they've started filling it in,
+        // so older accounts without one can still save other edits.
+        if (Object.values(address).some(v => v.trim())) {
+          const addressError = validateAddress(address);
+          if (addressError) {
+            Alert.alert('Address', addressError);
+            return;
+          }
+        }
         const { error } = await supabase.from('businesses').update({
           business_name: businessName,
           website,
           description,
-          address,
+          address: formatAddress(address),
           instagram_handle: bizInstagram,
           tiktok_handle: bizTiktok,
         }).eq('profile_id', user.id);
@@ -251,8 +262,7 @@ export default function ProfileScreen() {
               <Text style={styles.label}>About</Text>
               <TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} placeholder="About your business" placeholderTextColor={C.muted2} multiline numberOfLines={3} />
 
-              <Text style={styles.label}>Address</Text>
-              <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main St, Chicago, IL 60601" placeholderTextColor={C.muted2} />
+              <AddressFields value={address} onChange={setAddress} />
 
               <Text style={styles.sectionHeader}>Social</Text>
 

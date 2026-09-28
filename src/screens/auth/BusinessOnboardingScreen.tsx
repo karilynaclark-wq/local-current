@@ -4,6 +4,8 @@ import {
   SafeAreaView, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import AtInput from '../../components/AtInput';
+import AddressFields from '../../components/AddressFields';
+import { EMPTY_ADDRESS, formatAddress, validateAddress, type AddressParts } from '../../lib/address';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
@@ -30,10 +32,7 @@ export default function BusinessOnboardingScreen() {
   const [businessName, setBusinessName] = useState('');
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
-  const [street, setStreet] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [zip, setZip] = useState('');
+  const [address, setAddress] = useState<AddressParts>(EMPTY_ADDRESS);
   const [instagram, setInstagram] = useState('');
   const [tiktok, setTiktok] = useState('');
   const [loading, setLoading] = useState(false);
@@ -131,6 +130,11 @@ export default function BusinessOnboardingScreen() {
       Alert.alert('Required', 'Please enter your business name.');
       return;
     }
+    const addressError = validateAddress(address);
+    if (addressError) {
+      Alert.alert('Address', addressError);
+      return;
+    }
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -141,6 +145,7 @@ export default function BusinessOnboardingScreen() {
         business_name: businessName.replace(/\b\w/g, c => c.toUpperCase()),
         website,
         description,
+        address: formatAddress(address),
         instagram_handle: instagram,
         tiktok_handle: tiktok,
         subscription_tier: 'starter',
@@ -207,6 +212,8 @@ export default function BusinessOnboardingScreen() {
 
               <Text style={styles.label}>About</Text>
               <TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} placeholder="Tell creators what makes your business special..." placeholderTextColor={C.muted2} multiline numberOfLines={3} />
+
+              <AddressFields value={address} onChange={setAddress} required />
 
               <Text style={styles.sectionHeader}>Social</Text>
               <Text style={styles.socialHint}>Make sure to include this if you want creators to tag you when they post about you!</Text>

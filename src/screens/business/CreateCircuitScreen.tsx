@@ -98,7 +98,6 @@ export default function CreateCircuitScreen() {
     if (s === 1) {
       if (!title.trim()) return 'Please enter an event name.';
       if (!eventLink.trim()) return 'Please add an event link.';
-      if (!description.trim()) return 'Please describe your event.';
     }
     if (s === 2) {
       if (maxRedemptions === null) return 'Please select how many creators you\'d like to host.';
@@ -255,7 +254,7 @@ export default function CreateCircuitScreen() {
                 keyboardType="url"
               />
 
-              <Text style={styles.label}>Event Description *</Text>
+              <Text style={styles.label}>Event Description (optional)</Text>
               <TextInput
                 style={[styles.input, styles.multiline]}
                 value={description}
