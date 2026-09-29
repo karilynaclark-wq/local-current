@@ -361,6 +361,17 @@ export default function CircuitDetailScreen() {
     ? circuit.eligibility_min_followers.split(',').map(r => r.trim())
     : [];
 
+  // Minimum following: stored on new currents; older ones use their lowest tier.
+  const TIER_FLOOR: Record<string, number> = {
+    'Under 1K': 0, '1K–5K': 1_000, '5K–10K': 5_000, '10K–50K': 10_000, '50K–100K': 50_000, '100K+': 100_000,
+  };
+  const legacyRanges = [
+    ...allowedRanges,
+    ...Object.values(circuit.platform_followers ?? {}).flat() as string[],
+  ];
+  const effectiveMin: number | null = circuit.min_followers ?? (legacyRanges.length
+    ? Math.min(...legacyRanges.map(r => TIER_FLOOR[r] ?? 0)) : null);
+
   // Which platform(s) the current requires
   const pf = circuit.platform_followers;
   const pfKeys = pf
@@ -458,14 +469,12 @@ export default function CircuitDetailScreen() {
               );
             })()}
 
-            <View style={styles.miniRow}>
-              {circuit.guest_count != null && (
+            <View style={styles.miniGrid}>
+              {effectiveMin != null && (
                 <View style={styles.miniCard}>
-                  <View style={styles.miniIcon}><Icon name="person" size={16} color={C.accent} /></View>
-                  <Text style={styles.miniLabel}>COVERS</Text>
-                  <Text style={styles.miniValue}>
-                    {circuit.guest_count === 0 ? 'You only' : `You + ${circuit.guest_count} friend${circuit.guest_count > 1 ? 's' : ''}`}
-                  </Text>
+                  <View style={styles.miniIcon}><Icon name="trophy" size={16} color={C.accent} /></View>
+                  <Text style={styles.miniLabel}>MIN FOLLOWING</Text>
+                  <Text style={styles.miniValue}>{minFollowersLabel(effectiveMin)}</Text>
                 </View>
               )}
               {postOnLabel ? (
@@ -475,6 +484,22 @@ export default function CircuitDetailScreen() {
                   <Text style={styles.miniValue}>{postOnLabel}</Text>
                 </View>
               ) : null}
+              {circuit.max_redemptions != null && (
+                <View style={styles.miniCard}>
+                  <View style={styles.miniIcon}><Icon name="sparkles" size={16} color={C.accent} /></View>
+                  <Text style={styles.miniLabel}>CREATORS GETTING TICKETS</Text>
+                  <Text style={styles.miniValue}>{circuit.max_redemptions}</Text>
+                </View>
+              )}
+              {circuit.guest_count != null && (
+                <View style={styles.miniCard}>
+                  <View style={styles.miniIcon}><Icon name="person" size={16} color={C.accent} /></View>
+                  <Text style={styles.miniLabel}>EACH CREATOR GETS</Text>
+                  <Text style={styles.miniValue}>
+                    {circuit.guest_count === 0 ? 'Just you' : `You + ${circuit.guest_count} friend${circuit.guest_count > 1 ? 's' : ''}`}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {circuit.event_link ? (
@@ -941,10 +966,10 @@ export default function CircuitDetailScreen() {
             {pfKeys.length > 1 && (
               <Text style={styles.eitherNote}>You only need to qualify on one platform.</Text>
             )}
-            {circuit.min_followers != null ? (
-              pfKeys.map(p => {
+            {effectiveMin != null ? (
+              (pfKeys.length ? pfKeys : (['tiktok', 'instagram'] as const)).map(p => {
                 const count = creatorCounts[p];
-                const met = count != null && count >= (circuit.min_followers as number);
+                const met = count != null && count >= effectiveMin;
                 return (
                   <View key={p} style={styles.requirementRow}>
                     <View style={styles.requirementLabelRow}>
@@ -954,7 +979,7 @@ export default function CircuitDetailScreen() {
                       </Text>
                     </View>
                     <View style={styles.chipRow}>
-                      <View style={styles.chip}><Text style={styles.chipText}>{minFollowersLabel(circuit.min_followers as number)}</Text></View>
+                      <View style={styles.chip}><Text style={styles.chipText}>{minFollowersLabel(effectiveMin)}</Text></View>
                     </View>
                   </View>
                 );
@@ -1067,9 +1092,9 @@ const styles = StyleSheet.create({
   eligPillNo: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line2 },
   eligPillText: { fontFamily: F.display, fontWeight: '700', fontSize: 15 },
 
-  miniRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  miniGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
   miniCard: {
-    flex: 1, backgroundColor: C.card, borderRadius: R.lg, padding: 16,
+    flexBasis: '46%', flexGrow: 1, backgroundColor: C.card, borderRadius: R.lg, padding: 16,
     borderWidth: 1, borderColor: C.line, ...(S.card as any),
   },
   miniIcon: {
