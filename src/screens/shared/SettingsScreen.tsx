@@ -147,7 +147,7 @@ export default function SettingsScreen() {
             <Text style={styles.modalBody}>
               This permanently deletes your account and cannot be undone. The following will be removed immediately:{'\n\n'}
               • Your profile and login{'\n'}
-              • All claimed and completed currents{'\n'}
+              • All requested and completed currents{'\n'}
               • Any posts you submitted{'\n'}
               • All ratings and feedback you gave or received
             </Text>

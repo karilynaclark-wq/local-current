@@ -305,7 +305,7 @@ export default function MyCircuitsScreen() {
         ListEmptyComponent={
           <Text style={styles.empty}>
             {role === 'creator'
-              ? 'No claimed currents yet. Browse available currents to get started!'
+              ? 'No requests yet. Browse available currents to get started!'
               : "You haven't posted any currents yet."}
           </Text>
         }

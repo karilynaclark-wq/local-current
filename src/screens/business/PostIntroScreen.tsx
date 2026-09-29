@@ -7,7 +7,7 @@ import { Icon } from '../../components/Icon';
 const STEPS: { num: number; title: string; desc: string }[] = [
   { num: 1, title: 'Post an offer', desc: "Describe what event you'd like creators to attend." },
   { num: 2, title: 'We match creators', desc: "It's shown to eligible creators in your city." },
-  { num: 3, title: 'They visit & film', desc: 'Creators claim the offer, come by, and capture a video.' },
+  { num: 3, title: 'They visit & film', desc: 'Creators request to join, you approve them, and they come by and film.' },
   { num: 4, title: 'It goes live', desc: 'They post to TikTok or Instagram, tagging you.' },
   { num: 5, title: 'You see results', desc: "Get notified when it's live and track performance." },
 ];

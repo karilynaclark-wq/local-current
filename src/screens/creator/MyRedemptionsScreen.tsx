@@ -89,7 +89,7 @@ export default function MyRedemptionsScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchRedemptions} tintColor={C.accent} />}
         ListEmptyComponent={
-          <Text style={styles.empty}>No claimed currents yet. Browse available currents to get started!</Text>
+          <Text style={styles.empty}>No requests yet. Browse available currents to get started!</Text>
         }
         renderItem={({ item: r }) => {
           const circuit = r.circuit;
