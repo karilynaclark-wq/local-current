@@ -5,11 +5,11 @@ import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 
 const STEPS: { num: number; title: string; desc: string }[] = [
-  { num: 1, title: 'Post an offer', desc: "Describe what event you'd like creators to attend." },
-  { num: 2, title: 'We match creators', desc: "It's shown to eligible creators in your city." },
-  { num: 3, title: 'They visit & film', desc: 'Creators request to join, you approve them, and they come by and film.' },
-  { num: 4, title: 'It goes live', desc: 'They post to TikTok or Instagram, tagging you.' },
-  { num: 5, title: 'You see results', desc: "Get notified when it's live and track performance." },
+  { num: 1, title: 'Post your event', desc: 'Tell us what creators should attend and how many spots you have.' },
+  { num: 2, title: 'Creators request a spot', desc: "Eligible local creators see it and request to join. We'll notify you." },
+  { num: 3, title: 'Approve and send access', desc: 'Add a code, list spot, or ticket link. Approved creators get it instantly.' },
+  { num: 4, title: 'They attend and post', desc: 'Creators post to TikTok or Instagram within 48 hours, tagging you.' },
+  { num: 5, title: 'You see results', desc: 'Track reach on every post.' },
 ];
 
 export default function PostIntroScreen() {
