@@ -224,7 +224,14 @@ function BusinessTabs() {
       })}
     >
       <Tab.Screen name="MyCircuitsTab" component={MyCircuitsStack} />
-      <Tab.Screen name="PostTab" component={PostCircuitStack} />
+      <Tab.Screen
+        name="PostTab"
+        component={PostCircuitStack}
+        listeners={({ navigation }) => ({
+          // Always start a fresh post flow instead of reopening the last screen.
+          tabPress: () => navigation.navigate('PostTab', { screen: 'PostIntro' }),
+        })}
+      />
       <Tab.Screen name="ProfileTab" component={BusinessProfileStack} />
     </Tab.Navigator>
   );

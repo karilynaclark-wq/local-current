@@ -55,7 +55,7 @@ export default function CircuitLiveScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('MyCircuitsTab')} activeOpacity={0.9}>
+      <TouchableOpacity style={styles.button} onPress={() => { navigation.popToTop(); navigation.navigate('MyCircuitsTab'); }} activeOpacity={0.9}>
         <Text style={styles.buttonText}>View my currents</Text>
       </TouchableOpacity>
     </SafeAreaView>
