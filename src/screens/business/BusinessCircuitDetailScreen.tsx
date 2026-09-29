@@ -544,22 +544,31 @@ export default function BusinessCircuitDetailScreen() {
                   <Text style={styles.detailValue}>{circuit.max_redemptions}</Text>
                 </View>
               )}
-              {circuit.min_followers != null ? (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Minimum following</Text>
-                  <Text style={styles.detailValue}>
-                    {minFollowersLabel(circuit.min_followers)}
-                    {circuit.required_platform === 'tiktok' ? ' · TikTok' : circuit.required_platform === 'instagram' ? ' · Instagram' : ''}
-                  </Text>
-                </View>
-              ) : allowedRanges.length > 0 && (
-                <View style={styles.detailBlock}>
-                  <Text style={styles.detailLabel}>Follower range</Text>
-                  <View style={styles.chipRow}>
-                    {allowedRanges.map(r => <View key={r} style={styles.chip}><Text style={styles.chipText}>{r}</Text></View>)}
-                  </View>
-                </View>
-              )}
+              {(() => {
+                // Older currents stored tier ranges; show their lowest tier as the minimum.
+                const FLOOR: Record<string, number> = {
+                  'Under 1K': 0, '1K–5K': 1_000, '5K–10K': 5_000, '10K–50K': 10_000, '50K–100K': 50_000, '100K+': 100_000,
+                };
+                const min = circuit.min_followers ?? (allowedRanges.length
+                  ? Math.min(...allowedRanges.map(r => FLOOR[r] ?? 0)) : null);
+                if (min == null) return null;
+                const platform = circuit.required_platform === 'tiktok' ? 'TikTok only'
+                  : circuit.required_platform === 'instagram' ? 'Instagram only' : null;
+                return (
+                  <>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Minimum following</Text>
+                      <Text style={styles.detailValue}>{minFollowersLabel(min)}</Text>
+                    </View>
+                    {platform && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Platform</Text>
+                        <Text style={styles.detailValue}>{platform}</Text>
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
               {circuit.eligibility_niches?.length > 0 && (
                 <View style={styles.detailBlock}>
                   <Text style={styles.detailLabel}>Niches</Text>
