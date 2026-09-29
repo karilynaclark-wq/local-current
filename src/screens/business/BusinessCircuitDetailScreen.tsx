@@ -561,15 +561,14 @@ export default function BusinessCircuitDetailScreen() {
               )}
             </View>
 
-            <Text style={styles.sectionTitle}>Creator posts</Text>
+            {posts.length > 0 && <Text style={styles.sectionTitle}>Creator posts</Text>}
           </View>
         }
-        ListEmptyComponent={<Text style={styles.empty}>No posts submitted yet.</Text>}
         contentContainerStyle={styles.list}
         ListFooterComponent={
           <>
             <TouchableOpacity
-              style={[styles.actionBtn, circuit.is_active ? styles.actionBtnPause : styles.actionBtnResume, toggling && { opacity: 0.6 }, { marginTop: 24, justifyContent: 'center', paddingVertical: 15 }]}
+              style={[styles.actionBtn, circuit.is_active ? styles.actionBtnPause : styles.actionBtnResume, toggling && { opacity: 0.6 }, { marginTop: posts.length > 0 ? 24 : 0, justifyContent: 'center', paddingVertical: 15 }]}
               onPress={handleTogglePause}
               disabled={toggling}
               activeOpacity={0.8}
