@@ -486,6 +486,8 @@ export default function BusinessCircuitDetailScreen() {
               onOpenCreator={creatorId => navigation.navigate('CreatorPublicProfile', { creatorId })}
             />
 
+            {/* Analytics only once creators have posted — nothing to show before. */}
+            {stats.posts > 0 && (<>
             <View style={styles.statsRow}>
               {[
                 {
@@ -523,19 +525,16 @@ export default function BusinessCircuitDetailScreen() {
                 </View>
               ))}
             </View>
+            </>)}
 
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionTitle}>Opp details</Text>
-              {circuitLoaded && (
+              {circuit.guest_count != null && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Redemption</Text>
-                  {circuit.redemption_type === 'voucher' ? (
-                    <TouchableOpacity onPress={() => setShowVoucherPreview(true)} activeOpacity={0.7}>
-                      <Text style={[styles.detailValue, { color: C.accent, textDecorationLine: 'underline' }]}>In-person voucher →</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.detailValue}>Online promo code</Text>
-                  )}
+                  <Text style={styles.detailLabel}>Each creator gets</Text>
+                  <Text style={styles.detailValue}>
+                    {circuit.guest_count === 0 ? 'Just them' : `Them + ${circuit.guest_count} friend${circuit.guest_count > 1 ? 's' : ''}`}
+                  </Text>
                 </View>
               )}
               {circuit.max_redemptions != null && (
