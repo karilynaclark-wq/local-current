@@ -257,7 +257,7 @@ export default function CreateCircuitScreen() {
                 <Text style={minFollowing !== null ? styles.pickerValue : styles.pickerPlaceholder}>
                   {minFollowing !== null ? minFollowersLabel(minFollowing) : 'Select a minimum'}
                 </Text>
-                <Icon name="arrow" size={14} color={C.muted2} />
+                <Icon name="chevron-down" size={18} color={C.inkSoft} />
               </TouchableOpacity>
               {showMinPicker && (
                 <View style={styles.pickerDropdown}>
@@ -290,7 +290,7 @@ export default function CreateCircuitScreen() {
                           style={[styles.platformChip, on && styles.chipSelected]}
                           onPress={() => setPlatformChoice(on ? 'either' : val)}
                         >
-                          <Text style={[styles.chipText, on && styles.chipTextSelected]}>{label}</Text>
+                          <Text style={[styles.chipText, { color: C.ink }, on && styles.chipTextSelected]}>{label}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -301,7 +301,7 @@ export default function CreateCircuitScreen() {
                 </View>
               ) : (
                 <TouchableOpacity style={styles.platformLink} onPress={() => setShowPlatform(true)} activeOpacity={0.7}>
-                  <Icon name="gear" size={14} color={C.accent} />
+                  <Icon name="cog" size={14} color={C.accent} stroke={1.8} />
                   <Text style={styles.platformLinkText}>Want a specific platform? Choose it here.</Text>
                 </TouchableOpacity>
               )}
@@ -331,7 +331,7 @@ export default function CreateCircuitScreen() {
                 <Text style={styles.pickerValue}>
                   {GUEST_OPTIONS.filter(o => o.value === guestCount).map(opt => opt.value === 0 ? 'No, just them' : `Yes, ${opt.value} friend${opt.value > 1 ? 's' : ''}`)[0]}
                 </Text>
-                <Icon name="arrow" size={14} color={C.muted2} />
+                <Icon name="chevron-down" size={18} color={C.inkSoft} />
               </TouchableOpacity>
               {showGuestPicker && (
                 <View style={styles.pickerDropdown}>
@@ -443,14 +443,14 @@ const styles = StyleSheet.create({
   req: { color: C.accent },
   labelGap: { marginTop: 22 },
   platformLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -6 },
-  platformLinkText: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent },
+  platformLinkText: { fontFamily: F.bodyMedium, fontSize: 13, color: C.accent },
   platformCard: {
     marginTop: -8, padding: 14, borderRadius: R.md, backgroundColor: C.card,
     borderWidth: 1.5, borderColor: C.line2, gap: 10,
   },
   platformHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   platformTitle: { fontFamily: F.bodySemi, fontSize: 13, color: C.ink },
-  platformEither: { fontFamily: F.bodySemi, fontSize: 12.5, color: C.muted2 },
+  platformEither: { fontFamily: F.body, fontSize: 12.5, color: C.muted2 },
   platformEitherOn: { color: C.accent },
   platformRow: { flexDirection: 'row', gap: 10 },
   platformChip: {
@@ -459,18 +459,18 @@ const styles = StyleSheet.create({
   },
   platformNote: { fontFamily: F.body, fontSize: 11.5, color: C.muted, lineHeight: 16 },
   stepper: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, backgroundColor: C.card,
-    paddingLeft: 16, paddingRight: 8, paddingVertical: 8,
+    paddingLeft: 16, paddingRight: 6, paddingVertical: 6,
   },
-  stepperValue: { fontFamily: F.bodySemi, fontSize: 16, color: C.ink, flex: 1 },
+  stepperValue: { fontFamily: F.body, fontSize: 15, color: C.ink, flex: 1 },
   stepperUnit: { fontFamily: F.body, fontSize: 13, color: C.muted, marginRight: 4 },
   stepperBtn: {
-    width: 38, height: 38, borderRadius: R.sm, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.paper, borderWidth: 1, borderColor: C.line2,
+    width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.paper, borderWidth: 1, borderColor: C.line,
   },
-  stepperBtnText: { fontFamily: F.bodySemi, fontSize: 18, color: C.ink },
-  summary: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 8 },
+  stepperBtnText: { fontFamily: F.body, fontSize: 17, color: C.ink },
+  summary: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: -14, marginBottom: 4 },
   input: {
     fontFamily: F.body, borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md,
     padding: 13, fontSize: 15, color: C.ink, backgroundColor: C.card,
