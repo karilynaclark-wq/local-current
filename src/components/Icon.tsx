@@ -10,7 +10,7 @@ type IconName =
   | 'search' | 'plus' | 'person' | 'clipboard' | 'pin' | 'link'
   | 'arrow' | 'back' | 'close' | 'gear' | 'check' | 'star' | 'star-fill'
   | 'bell' | 'eye' | 'film' | 'phone' | 'switch' | 'logout' | 'storefront'
-  | 'sparkles' | 'trophy' | 'mark' | 'chevron-down' | 'cog';
+  | 'sparkles' | 'trophy' | 'mark' | 'chevron-down' | 'chevron-right' | 'cog';
 
 interface IconProps {
   name: IconName;
@@ -73,6 +73,8 @@ export function Icon({ name, size = 22, color = '#241D17', stroke = 2 }: IconPro
       return <Svg {...props}><Path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6zM18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z" {...s}/></Svg>;
     case 'trophy':
       return <Svg {...props}><Path d="M8 4h8v4a4 4 0 0 1-8 0zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 12v3M9 19h6M10 19l.5-4h3l.5 4" {...s}/></Svg>;
+    case 'chevron-right':
+      return <Svg {...props}><Path d="M9 6l6 6-6 6" {...s}/></Svg>;
     case 'chevron-down':
       return <Svg {...props}><Path d="M6 9l6 6 6-6" {...s}/></Svg>;
     case 'cog':

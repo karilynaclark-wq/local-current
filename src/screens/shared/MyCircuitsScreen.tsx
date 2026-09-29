@@ -181,38 +181,24 @@ export default function MyCircuitsScreen() {
 
   // ─── Business circuit card ──────────────────────────────────────────────────
   function renderBusinessItem({ item }: { item: any }) {
-    const status = circuitStatus(item);
-    const neighborhood = neighborhoodFromAddress(item.business?.address);
+    const live = circuitStatus(item) === 'active';
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={styles.bizCard}
         activeOpacity={0.88}
         onPress={() => navigation.navigate('BusinessCircuitDetail', { circuit: item })}
       >
-        {!!item.business?.business_name && (
-          <Text style={styles.cardEyebrow}>{item.business.business_name.toUpperCase()}</Text>
-        )}
-        <View style={styles.cardHead}>
-          <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-            <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-            {!!item.description && (
-              <Text style={styles.cardSub} numberOfLines={2}>{item.description}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.bizEyebrowRow}>
+            <View style={[styles.statusDot, { backgroundColor: live ? C.ok : C.muted2 }]} />
+            {!!item.business?.business_name && (
+              <Text style={styles.bizEyebrow} numberOfLines={1}>{item.business.business_name.toUpperCase()}</Text>
             )}
           </View>
-          <StatusChip status={status}/>
+          <Text style={styles.bizTitle} numberOfLines={2}>{item.title}</Text>
         </View>
-        {!!neighborhood && (
-          <View style={styles.locRow}>
-            <Icon name="pin" size={13} color={C.muted2}/>
-            <Text style={styles.locText}>{neighborhood}</Text>
-          </View>
-        )}
-        <View style={styles.cardRow}>
-          <View style={{ flex: 1 }}/>
-          <View style={styles.linkRow}>
-            <Text style={styles.linkText}>View details</Text>
-            <Icon name="arrow" size={14} color={C.accent}/>
-          </View>
+        <View style={styles.chevronCircle}>
+          <Icon name="chevron-right" size={14} color={C.accent} />
         </View>
       </TouchableOpacity>
     );
@@ -223,10 +209,7 @@ export default function MyCircuitsScreen() {
     return (
       <View>
         {/* Top creators */}
-        <View style={styles.sectionHeader}>
-          <Icon name="trophy" size={18} color={C.accent}/>
-          <Text style={styles.sectionHeaderText}>Top creators</Text>
-        </View>
+        <Text style={styles.sectionTitle}>Top creators</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -262,18 +245,22 @@ export default function MyCircuitsScreen() {
         </ScrollView>
 
         {/* Other businesses */}
-        <View style={[styles.sectionHeader, { marginTop: 8 }]}>
-          <Icon name="eye" size={18} color={C.accent}/>
-          <Text style={styles.sectionHeaderText}>What other local businesses are offering</Text>
-        </View>
+        <Text style={styles.sectionTitle}>What other local businesses are offering</Text>
         {otherCircuits.length === 0 ? (
-          <Text style={styles.otherEmpty}>No other active currents right now.</Text>
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyBoxTitle}>Nothing live right now</Text>
+            <Text style={styles.emptyBoxSub}>New currents from nearby businesses will show up here.</Text>
+          </View>
         ) : (
           otherCircuits.map(c => (
-            <View key={c.id} style={styles.otherCard}>
-              <Text style={styles.otherBiz}>{(c.business?.business_name ?? '').toUpperCase()}</Text>
-              <Text style={styles.otherTitle}>{c.title}</Text>
-              {!!c.description && <Text style={styles.otherDesc} numberOfLines={2}>{c.description}</Text>}
+            <View key={c.id} style={styles.bizCard}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={styles.bizEyebrowRow}>
+                  <View style={[styles.statusDot, { backgroundColor: C.ok }]} />
+                  <Text style={styles.bizEyebrow} numberOfLines={1}>{(c.business?.business_name ?? '').toUpperCase()}</Text>
+                </View>
+                <Text style={styles.bizTitle} numberOfLines={2}>{c.title}</Text>
+              </View>
             </View>
           ))
         )}
@@ -284,7 +271,7 @@ export default function MyCircuitsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, role === 'business' && { borderBottomWidth: 0 }]}>
         {role === 'business' ? <Logo size="sm" /> : <Text style={styles.screenTitle}>My claims</Text>}
       </View>
 
@@ -298,17 +285,20 @@ export default function MyCircuitsScreen() {
         }
         ListHeaderComponent={role === 'business' ? (
           <View style={styles.myCircuitsHeader}>
-            <Mark size={18}/>
             <Text style={styles.myCircuitsHeaderText}>My currents</Text>
+            {items.length > 0 && (
+              <Text style={styles.activeCount}>{items.filter((c: any) => c.is_active).length} active</Text>
+            )}
           </View>
         ) : null}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {role === 'creator'
-              ? 'No requests yet. Browse available currents to get started!'
-              : "You haven't posted any currents yet."}
-          </Text>
-        }
+        ListEmptyComponent={role === 'creator' ? (
+          <Text style={styles.empty}>No requests yet. Browse available currents to get started!</Text>
+        ) : (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyBoxTitle}>No currents yet</Text>
+            <Text style={styles.emptyBoxSub}>Tap Post to create your first current.</Text>
+          </View>
+        )}
         ListFooterComponent={role === 'business' ? <BusinessFooter/> : null}
       />
     </SafeAreaView>
@@ -361,12 +351,36 @@ const styles = StyleSheet.create({
 
   // Section headers
   myCircuitsHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 9,
-    paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    paddingBottom: 12, paddingTop: 4,
   },
   myCircuitsHeaderText: {
-    fontFamily: F.display, fontWeight: '700', fontSize: 15, color: C.ink,
+    fontFamily: F.display, fontWeight: '700', fontSize: 18, color: C.ink,
   },
+  activeCount: { fontFamily: F.body, fontSize: 13, color: C.muted },
+  sectionTitle: {
+    fontFamily: F.display, fontWeight: '700', fontSize: 18, color: C.ink,
+    marginTop: 28, marginBottom: 12,
+  },
+  bizCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
+    borderRadius: R.lg, paddingVertical: 16, paddingHorizontal: 18, marginBottom: 10,
+  },
+  bizEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  bizEyebrow: { fontFamily: F.monoBold, fontSize: 10.5, letterSpacing: 0.8, color: C.muted, flexShrink: 1 },
+  bizTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 16, letterSpacing: -0.2, color: C.ink },
+  chevronCircle: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: C.accentTint,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyBox: {
+    borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, borderRadius: R.lg,
+    paddingVertical: 24, paddingHorizontal: 20, alignItems: 'center', gap: 6,
+  },
+  emptyBoxTitle: { fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
+  emptyBoxSub: { fontFamily: F.body, fontSize: 13, color: C.muted, textAlign: 'center', lineHeight: 18 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     marginTop: 28, marginBottom: 12, paddingTop: 20,
@@ -398,7 +412,7 @@ const styles = StyleSheet.create({
   },
   creatorHandle: {
     fontFamily: F.body, fontSize: 11, color: C.muted,
-    textAlign: 'center', maxWidth: 72,
+    textAlign: 'center', width: 72,
   },
 
   // Other circuits cards
