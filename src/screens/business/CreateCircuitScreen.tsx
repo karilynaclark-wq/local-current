@@ -8,8 +8,16 @@ import { supabase } from '../../lib/supabase';
 import { trackEvent } from '../../lib/analytics';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import { MIN_FOLLOWER_OPTIONS, minFollowersLabel } from '../../lib/eligibility';
 
 const FOLLOWER_RANGES = ['Under 1K', '1K–5K', '5K–10K', '10K–50K', '50K–100K', '100K+'];
+
+// Tier upper bounds, for filling the legacy range fields from a numeric minimum.
+const TIER_UPPER: Record<string, number> = {
+  'Under 1K': 1_000, '1K–5K': 5_000, '5K–10K': 10_000,
+  '10K–50K': 50_000, '50K–100K': 100_000, '100K+': Infinity,
+};
+const MAX_CREATORS = 50;
 
 const GUEST_OPTIONS = [
   { label: 'No, this offer only covers the creator', value: 0 },
@@ -70,12 +78,21 @@ export default function CreateCircuitScreen() {
   const [description, setDescription] = useState('');
 
   // Step 2
-  const [maxRedemptions, setMaxRedemptions] = useState<number | null>(null);
+  const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
   const [guestCount, setGuestCount] = useState<number>(1); // +1 friend is the most common offer
-  const [selectedPlatforms, setSelectedPlatforms] = useState<('tiktok' | 'instagram')[]>([]);
-  const [activePlatform, setActivePlatform] = useState<'tiktok' | 'instagram' | null>(null);
-  const [platformFollowers, setPlatformFollowers] = useState<{ tiktok: string[]; instagram: string[] }>({ tiktok: [], instagram: [] });
+  const [minFollowing, setMinFollowing] = useState<number | null>(null); // follower count
+  const [showMinPicker, setShowMinPicker] = useState(false);
+  const [platformChoice, setPlatformChoice] = useState<'either' | 'tiktok' | 'instagram'>('either');
+  const [showPlatform, setShowPlatform] = useState(false);
+  const [showGuestPicker, setShowGuestPicker] = useState(false);
+
+  // Derived eligibility in the shape the rest of the app expects.
+  // Legacy range fields: every tier that can contain someone at/above the minimum.
+  const eligibleRanges = minFollowing === null ? [] : FOLLOWER_RANGES.filter(r => TIER_UPPER[r] > minFollowing);
+  const selectedPlatforms: ('tiktok' | 'instagram')[] =
+    platformChoice === 'either' ? ['tiktok', 'instagram'] : [platformChoice];
+  const platformFollowers = { tiktok: eligibleRanges, instagram: eligibleRanges };
 
   // Step 3
   const [creatorNotes, setCreatorNotes] = useState('');
@@ -96,13 +113,8 @@ export default function CreateCircuitScreen() {
       if (!eventLink.trim()) return 'Please add an event link.';
     }
     if (s === 2) {
-      if (maxRedemptions === null) return 'Please select how many creators you\'d like to host.';
-      if (selectedPlatforms.length === 0) return 'Please select at least one platform.';
-      for (const p of selectedPlatforms) {
-        if (platformFollowers[p].length === 0) {
-          return `Please select a follower range for ${p === 'tiktok' ? 'TikTok' : 'Instagram'}.`;
-        }
-      }
+      if (minFollowing === null) return 'Please choose a minimum following.';
+      if (!maxRedemptions || maxRedemptions < 1) return 'Please choose how many creators get tickets.';
     }
     return null;
   }
@@ -138,6 +150,7 @@ export default function CreateCircuitScreen() {
         platform_followers: Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
         max_redemptions: maxRedemptions,
         guest_count: guestCount,
+        min_followers: minFollowing,
         starts_at: new Date().toISOString().split('T')[0],
         expires_at: null,
         is_active: true,
@@ -164,7 +177,7 @@ export default function CreateCircuitScreen() {
 
   const STEPS = [
     { number: 1, title: 'Tell creators about your event', subtitle: '' },
-    { number: 2, title: 'Choose your creators', subtitle: 'Define who you want to promote it' },
+    { number: 2, title: 'Choose your creators', subtitle: 'Who gets tickets, and how many' },
     { number: 3, title: 'Ready to publish', subtitle: '' },
   ];
 
@@ -240,111 +253,110 @@ export default function CreateCircuitScreen() {
           {/* ── STEP 2 ── */}
           {step === 2 && (
             <>
-              <Text style={styles.label}>What platform would you like the video shared to? *</Text>
-              <View style={styles.chips}>
-                {(['TikTok', 'Instagram'] as const).map(p => {
-                  const val = p.toLowerCase() as 'tiktok' | 'instagram';
-                  const isSelected = selectedPlatforms.includes(val);
-                  const isActive = activePlatform === val;
-                  return (
-                    <TouchableOpacity
-                      key={p}
-                      style={[styles.chip, isSelected && styles.chipSelected, isActive && styles.chipActive]}
-                      onPress={() => {
-                        if (isSelected && isActive) {
-                          // deselect this platform
-                          setSelectedPlatforms(prev => prev.filter(x => x !== val));
-                          setPlatformFollowers(prev => ({ ...prev, [val]: [] }));
-                          setActivePlatform(prev => {
-                            const remaining = selectedPlatforms.filter(x => x !== val);
-                            return remaining[0] ?? null;
-                          });
-                        } else {
-                          if (!isSelected) setSelectedPlatforms(prev => [...prev, val]);
-                          setActivePlatform(val);
-                        }
-                      }}
-                    >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                        {isSelected ? '✓ ' : ''}{p}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {activePlatform && (
-                <>
-                  <Text style={styles.label}>
-                    What size {activePlatform === 'tiktok' ? 'TikTok' : 'Instagram'} following must the creator have? *
-                  </Text>
-                  <Text style={styles.hint}>
-                    Select all that apply · We'll show your current to larger tiers first and open it to smaller tiers every 24 hours as needed.
-                  </Text>
-                  <View style={styles.chips}>
-                    {FOLLOWER_RANGES.map(r => {
-                      const ranges = platformFollowers[activePlatform];
-                      const on = ranges.includes(r);
-                      return (
-                        <TouchableOpacity
-                          key={r}
-                          style={[styles.chip, on && styles.chipSelected]}
-                          onPress={() => setPlatformFollowers(prev => ({
-                            ...prev,
-                            [activePlatform]: prev[activePlatform].includes(r)
-                              ? prev[activePlatform].filter(x => x !== r)
-                              : [...prev[activePlatform], r],
-                          }))}
-                        >
-                          <Text style={[styles.chipText, on && styles.chipTextSelected]}>{r}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-
-              <Text style={styles.label}>How many creators do you want? *</Text>
-              <TouchableOpacity style={styles.picker} onPress={() => setShowCreatorPicker(!showCreatorPicker)}>
-                <Text style={maxRedemptions ? styles.pickerValue : styles.pickerPlaceholder}>
-                  {maxRedemptions ? `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''}` : 'Select a number'}
+              <Text style={styles.label}>Minimum following <Text style={styles.req}>*</Text></Text>
+              <Text style={styles.hint}>Creators with larger followings will get first access.</Text>
+              <TouchableOpacity style={styles.picker} onPress={() => setShowMinPicker(v => !v)}>
+                <Text style={minFollowing !== null ? styles.pickerValue : styles.pickerPlaceholder}>
+                  {minFollowing !== null ? minFollowersLabel(minFollowing) : 'Select a minimum'}
                 </Text>
                 <Icon name="arrow" size={14} color={C.muted2} />
               </TouchableOpacity>
-              {showCreatorPicker && (
+              {showMinPicker && (
                 <View style={styles.pickerDropdown}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20].map(n => (
+                  {MIN_FOLLOWER_OPTIONS.map(opt => (
                     <TouchableOpacity
-                      key={n}
-                      style={[styles.pickerOption, maxRedemptions === n && styles.pickerOptionSelected]}
-                      onPress={() => { setMaxRedemptions(n); setShowCreatorPicker(false); }}
+                      key={opt.label}
+                      style={[styles.pickerOption, minFollowing === opt.value && styles.pickerOptionSelected]}
+                      onPress={() => { setMinFollowing(opt.value); setShowMinPicker(false); }}
                     >
-                      <Text style={[styles.pickerOptionText, maxRedemptions === n && styles.pickerOptionTextSelected]}>
-                        {n} creator{n > 1 ? 's' : ''}
-                      </Text>
+                      <Text style={[styles.pickerOptionText, minFollowing === opt.value && styles.pickerOptionTextSelected]}>{opt.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              <Text style={styles.label}>What does each creator get? *</Text>
-              <View style={styles.chips}>
-                {GUEST_OPTIONS.map(opt => {
-                  const on = guestCount === opt.value;
-                  const label = opt.value === 0 ? 'Just them' : `Them + ${opt.value} friend${opt.value > 1 ? 's' : ''}`;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.chip, on && styles.chipSelected]}
-                      onPress={() => setGuestCount(opt.value)}
-                    >
-                      <Text style={[styles.chipText, on && styles.chipTextSelected]}>{label}</Text>
+              {showPlatform ? (
+                <View style={styles.platformCard}>
+                  <View style={styles.platformHeader}>
+                    <Text style={styles.platformTitle}>Platform</Text>
+                    <TouchableOpacity onPress={() => setPlatformChoice('either')}>
+                      <Text style={[styles.platformEither, platformChoice === 'either' && styles.platformEitherOn]}>Either is fine</Text>
                     </TouchableOpacity>
-                  );
-                })}
+                  </View>
+                  <View style={styles.platformRow}>
+                    {([['tiktok', 'TikTok only'], ['instagram', 'Instagram only']] as const).map(([val, label]) => {
+                      const on = platformChoice === val;
+                      return (
+                        <TouchableOpacity
+                          key={val}
+                          style={[styles.platformChip, on && styles.chipSelected]}
+                          onPress={() => setPlatformChoice(on ? 'either' : val)}
+                        >
+                          <Text style={[styles.chipText, on && styles.chipTextSelected]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.platformNote}>
+                    If you don't choose one, creators can post on either TikTok or Instagram as long as they meet the follower requirement.
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.platformLink} onPress={() => setShowPlatform(true)} activeOpacity={0.7}>
+                  <Icon name="gear" size={14} color={C.accent} />
+                  <Text style={styles.platformLinkText}>Want a specific platform? Choose it here.</Text>
+                </TouchableOpacity>
+              )}
+
+              <Text style={[styles.label, styles.labelGap]}>How many creators get tickets? <Text style={styles.req}>*</Text></Text>
+              <View style={styles.stepper}>
+                <Text style={styles.stepperValue}>{maxRedemptions}</Text>
+                <Text style={styles.stepperUnit}>creators</Text>
+                <TouchableOpacity
+                  style={[styles.stepperBtn, maxRedemptions <= 1 && { opacity: 0.4 }]}
+                  onPress={() => setMaxRedemptions(n => Math.max(1, n - 1))}
+                  disabled={maxRedemptions <= 1}
+                >
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.stepperBtn, maxRedemptions >= MAX_CREATORS && { opacity: 0.4 }]}
+                  onPress={() => setMaxRedemptions(n => Math.min(MAX_CREATORS, n + 1))}
+                  disabled={maxRedemptions >= MAX_CREATORS}
+                >
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
               </View>
 
-              <Text style={styles.label}>Any notes or additional info for creators?</Text>
+              <Text style={[styles.label, styles.labelGap]}>Can creators bring friends? <Text style={styles.req}>*</Text></Text>
+              <TouchableOpacity style={styles.picker} onPress={() => setShowGuestPicker(v => !v)}>
+                <Text style={styles.pickerValue}>
+                  {GUEST_OPTIONS.filter(o => o.value === guestCount).map(opt => opt.value === 0 ? 'No, just them' : `Yes, ${opt.value} friend${opt.value > 1 ? 's' : ''}`)[0]}
+                </Text>
+                <Icon name="arrow" size={14} color={C.muted2} />
+              </TouchableOpacity>
+              {showGuestPicker && (
+                <View style={styles.pickerDropdown}>
+                  {GUEST_OPTIONS.map(opt => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.pickerOption, guestCount === opt.value && styles.pickerOptionSelected]}
+                      onPress={() => { setGuestCount(opt.value); setShowGuestPicker(false); }}
+                    >
+                      <Text style={[styles.pickerOptionText, guestCount === opt.value && styles.pickerOptionTextSelected]}>
+                        {opt.value === 0 ? 'No, just them' : `Yes, ${opt.value} friend${opt.value > 1 ? 's' : ''}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              <Text style={styles.summary}>
+                {guestCount > 0
+                  ? `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''} with ${guestCount} friend${guestCount > 1 ? 's' : ''} each = ${maxRedemptions * (1 + guestCount)} tickets total`
+                  : `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''} = ${maxRedemptions} ticket${maxRedemptions > 1 ? 's' : ''} total`}
+              </Text>
+
+              <Text style={[styles.label, styles.labelGap]}>Notes for creators (optional)</Text>
               <TextInput
                 style={[styles.input, styles.multiline]}
                 value={creatorNotes}
@@ -386,8 +398,8 @@ export default function CreateCircuitScreen() {
 
           {step < 3 && (
             <TouchableOpacity style={styles.button} onPress={handleNext}>
-              <Text style={styles.buttonText}>Next</Text>
-              <Icon name="arrow" size={16} color="#fff" />
+              <Text style={styles.buttonText}>{step === 2 ? 'Continue' : 'Next'}</Text>
+              {step !== 2 && <Icon name="arrow" size={16} color="#fff" />}
             </TouchableOpacity>
           )}
 
@@ -440,6 +452,37 @@ const styles = StyleSheet.create({
   tipsBtn: { backgroundColor: C.accentTint, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: C.accentSoft },
   tipsBtnText: { fontFamily: F.bodySemi, fontSize: 11, color: C.accent },
   hint: { fontFamily: F.body, fontSize: 12, color: C.muted2, marginBottom: 8 },
+  req: { color: C.accent },
+  labelGap: { marginTop: 22 },
+  platformLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -6 },
+  platformLinkText: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent },
+  platformCard: {
+    marginTop: -8, padding: 14, borderRadius: R.md, backgroundColor: C.card,
+    borderWidth: 1.5, borderColor: C.line2, gap: 10,
+  },
+  platformHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  platformTitle: { fontFamily: F.bodySemi, fontSize: 13, color: C.ink },
+  platformEither: { fontFamily: F.bodySemi, fontSize: 12.5, color: C.muted2 },
+  platformEitherOn: { color: C.accent },
+  platformRow: { flexDirection: 'row', gap: 10 },
+  platformChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: R.pill,
+    borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.card,
+  },
+  platformNote: { fontFamily: F.body, fontSize: 11.5, color: C.muted, lineHeight: 16 },
+  stepper: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, backgroundColor: C.card,
+    paddingLeft: 16, paddingRight: 8, paddingVertical: 8,
+  },
+  stepperValue: { fontFamily: F.bodySemi, fontSize: 16, color: C.ink, flex: 1 },
+  stepperUnit: { fontFamily: F.body, fontSize: 13, color: C.muted, marginRight: 4 },
+  stepperBtn: {
+    width: 38, height: 38, borderRadius: R.sm, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.paper, borderWidth: 1, borderColor: C.line2,
+  },
+  stepperBtnText: { fontFamily: F.bodySemi, fontSize: 18, color: C.ink },
+  summary: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 8 },
   input: {
     fontFamily: F.body, borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md,
     padding: 13, fontSize: 15, color: C.ink, backgroundColor: C.card,

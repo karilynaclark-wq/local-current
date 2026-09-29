@@ -41,7 +41,7 @@ serve(async (req) => {
     // comes from the database rather than the request.
     const { data: circuit } = await supabase
       .from('circuits')
-      .select('title, eligibility_min_followers, eligibility_niches, business:businesses(business_name, profile_id)')
+      .select('title, eligibility_min_followers, eligibility_niches, min_followers, required_platform, business:businesses(business_name, profile_id)')
       .eq('id', circuitId)
       .single();
     const biz = (circuit as any)?.business;
@@ -56,7 +56,7 @@ serve(async (req) => {
     // Fetch eligible approved creators with push tokens — server-side only
     const { data: creators } = await supabase
       .from('creators')
-      .select('follower_range, niche, profile:profiles(push_token)')
+      .select('profile_id, follower_range, niche, main_platform, secondary_platform, secondary_follower_range, profile:profiles(push_token)')
       .eq('status', 'approved');
 
     if (!creators?.length) {
@@ -68,10 +68,39 @@ serve(async (req) => {
       : [];
     const requiredNiches: string[] = eligibilityNiches ?? [];
 
+    // Numeric minimum: verified follower counts, else the floor of the creator's tier.
+    const minFollowers: number | null = (circuit as any).min_followers ?? null;
+    const requiredPlatform: string = (circuit as any).required_platform ?? 'either';
+    const TIER_FLOOR: Record<string, number> = {
+      'Under 1K': 0, '1K–5K': 1000, '5K–10K': 5000, '10K–50K': 10000, '50K–100K': 50000, '100K+': 100000,
+    };
+    const verified: Record<string, Record<string, number>> = {};
+    if (minFollowers != null) {
+      const { data: conns } = await supabase
+        .from('social_connections')
+        .select('profile_id, platform, follower_count')
+        .eq('connection_type', 'oauth');
+      for (const c of conns ?? []) {
+        (verified[c.profile_id] ??= {})[c.platform] = c.follower_count ?? 0;
+      }
+    }
+    function meetsMinimum(c: any): boolean {
+      const tiers: Record<string, string> = {};
+      if (c.main_platform && c.follower_range) tiers[c.main_platform.toLowerCase()] = c.follower_range;
+      if (c.secondary_platform && c.secondary_follower_range) tiers[c.secondary_platform.toLowerCase()] = c.secondary_follower_range;
+      const platforms = requiredPlatform === 'either' ? ['tiktok', 'instagram'] : [requiredPlatform];
+      return platforms.some((p) => {
+        const count = verified[c.profile_id]?.[p] ?? (tiers[p] != null ? TIER_FLOOR[tiers[p]] : undefined);
+        return count != null && count >= (minFollowers as number);
+      });
+    }
+
     const tokens = (creators as any[])
       .filter((c) => {
         if (!c.profile?.push_token) return false;
-        if (allowedRanges.length > 0 && !allowedRanges.includes(c.follower_range)) return false;
+        if (minFollowers != null) {
+          if (!meetsMinimum(c)) return false;
+        } else if (allowedRanges.length > 0 && !allowedRanges.includes(c.follower_range)) return false;
         if (requiredNiches.length > 0) {
           const cNiches: string[] = c.niche ? c.niche.split(',').map((n: string) => n.trim()) : [];
           if (!requiredNiches.some((n) => cNiches.includes(n))) return false;

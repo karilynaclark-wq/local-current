@@ -10,7 +10,8 @@ import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { Logo } from '../../components/Logo';
 import { StatusChip } from '../../components/UI';
-import { isEligibleForCircuit, creatorFollowersByPlatform, PlatformFollowerMap } from '../../lib/eligibility';
+import { isEligibleForCircuit, creatorFollowersByPlatform, creatorFollowerCounts, PlatformFollowerMap, PlatformCountMap } from '../../lib/eligibility';
+import { getConnections } from '../../lib/socialConnect';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
   '60601': 'The Loop', '60602': 'The Loop', '60603': 'The Loop', '60604': 'The Loop',
@@ -48,6 +49,7 @@ export default function CreatorHomeScreen() {
   const [creatorFollowerRange, setCreatorFollowerRange] = useState('');
   const [creatorNiches, setCreatorNiches] = useState<string[]>([]);
   const [creatorFollowers, setCreatorFollowers] = useState<PlatformFollowerMap>({});
+  const [creatorCounts, setCreatorCounts] = useState<PlatformCountMap>({});
   const [redemptionMap, setRedemptionMap] = useState<Record<string, { status: string; hasPost: boolean }>>({});
   const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
 
@@ -68,7 +70,10 @@ export default function CreatorHomeScreen() {
           setCreatorStatus(creator.status ?? null);
           setCreatorFollowerRange(creator.follower_range ?? '');
           setCreatorNiches(creator.niche ? creator.niche.split(',').map((n: string) => n.trim()) : []);
-          setCreatorFollowers(creatorFollowersByPlatform(creator));
+          const tiers = creatorFollowersByPlatform(creator);
+          setCreatorFollowers(tiers);
+          const conns = await getConnections().catch(() => []);
+          setCreatorCounts(creatorFollowerCounts(tiers, conns));
           const { data: redemptions } = await supabase
             .from('redemptions')
             .select('circuit_id, status, posts(id)')
@@ -97,8 +102,8 @@ export default function CreatorHomeScreen() {
     }
   }
 
-  const eligibleCircuits = circuits.filter(c => isEligibleForCircuit(c, creatorFollowerRange, creatorNiches, creatorFollowers));
-  const ineligibleCircuits = circuits.filter(c => !isEligibleForCircuit(c, creatorFollowerRange, creatorNiches, creatorFollowers));
+  const eligibleCircuits = circuits.filter(c => isEligibleForCircuit(c, creatorFollowerRange, creatorNiches, creatorFollowers, creatorCounts));
+  const ineligibleCircuits = circuits.filter(c => !isEligibleForCircuit(c, creatorFollowerRange, creatorNiches, creatorFollowers, creatorCounts));
 
   const sections = [
     ...(eligibleCircuits.length > 0 ? [{ title: 'For you', data: eligibleCircuits, eligible: true }] : []),

@@ -1,5 +1,68 @@
 import { Circuit } from '../types';
 
+// ── Numeric minimum-following model (circuits.min_followers) ────────────────
+/** Minimum-following choices offered to businesses, largest last. */
+export const MIN_FOLLOWER_OPTIONS = [
+  { label: 'Under 1K', value: 0 },
+  { label: '5K+', value: 5_000 },
+  { label: '10K+', value: 10_000 },
+  { label: '25K+', value: 25_000 },
+  { label: '50K+', value: 50_000 },
+  { label: '100K+', value: 100_000 },
+  { label: '150K+', value: 150_000 },
+];
+
+export function minFollowersLabel(n: number): string {
+  return MIN_FOLLOWER_OPTIONS.find(o => o.value === n)?.label ?? `${Math.round(n / 1000)}K+`;
+}
+
+/** Lower bound of a self-reported tier, used when there's no verified count. */
+const TIER_FLOOR: Record<string, number> = {
+  'Under 1K': 0, '1K–5K': 1_000, '5K–10K': 5_000,
+  '10K–50K': 10_000, '50K–100K': 50_000, '100K+': 100_000,
+};
+
+export type PlatformCountMap = { tiktok?: number; instagram?: number };
+
+/**
+ * Follower count per platform: the verified (OAuth) count when connected,
+ * otherwise the floor of the creator's self-reported tier.
+ */
+export function creatorFollowerCounts(
+  tiers: PlatformFollowerMap,
+  connections: { platform: string; connection_type: string; follower_count: number }[] = [],
+): PlatformCountMap {
+  const out: PlatformCountMap = {};
+  for (const p of ['tiktok', 'instagram'] as const) {
+    const verified = connections.find(c => c.platform === p && c.connection_type === 'oauth');
+    if (verified) out[p] = verified.follower_count;
+    else if (tiers[p] && tiers[p]! in TIER_FLOOR) out[p] = TIER_FLOOR[tiers[p]!];
+  }
+  return out;
+}
+
+/**
+ * Threshold currently open for a min_followers current: larger accounts get
+ * first access, stepping down one option every 24h until the minimum.
+ */
+function currentThreshold(min: number, createdAt: string | undefined): number {
+  const stages = MIN_FOLLOWER_OPTIONS.map(o => o.value).filter(v => v >= min).sort((a, b) => b - a);
+  if (stages.length === 0) return min;
+  const created = createdAt ? new Date(createdAt).getTime() : Date.now();
+  const days = Math.floor((Date.now() - created) / 86_400_000);
+  return stages[Math.min(days, stages.length - 1)];
+}
+
+function numericStatus(circuit: Circuit, counts: PlatformCountMap): 'eligible' | 'soon' | 'no' {
+  const min = circuit.min_followers as number;
+  const platforms = circuit.required_platform === 'tiktok' ? ['tiktok']
+    : circuit.required_platform === 'instagram' ? ['instagram']
+    : ['tiktok', 'instagram'];
+  const best = Math.max(-1, ...platforms.map(p => counts[p as 'tiktok' | 'instagram'] ?? -1));
+  if (best < 0 || best < min) return 'no';
+  return best >= currentThreshold(min, circuit.created_at) ? 'eligible' : 'soon';
+}
+
 const FOLLOWER_TIER_ORDER = [
   '100K+',
   '50K–100K',
@@ -35,11 +98,14 @@ export function eligibilityStatus(
   circuit: Circuit,
   followerRange: string,
   niches: string[],
-  creatorFollowers?: PlatformFollowerMap
+  creatorFollowers?: PlatformFollowerMap,
+  creatorCounts?: PlatformCountMap,
 ): 'eligible' | 'soon' | 'no' {
   const requiredNiches: string[] = circuit.eligibility_niches ?? [];
   const nicheOk = requiredNiches.length === 0 || niches.some(n => requiredNiches.includes(n));
   if (!nicheOk) return 'no';
+
+  if (circuit.min_followers != null) return numericStatus(circuit, creatorCounts ?? {});
 
   const pf = circuit.platform_followers;
   const selectedPlatforms = pf
@@ -103,10 +169,15 @@ export function isEligibleForCircuit(
   circuit: Circuit,
   followerRange: string,
   niches: string[],
-  creatorFollowers?: PlatformFollowerMap
+  creatorFollowers?: PlatformFollowerMap,
+  creatorCounts?: PlatformCountMap,
 ): boolean {
   const requiredNiches: string[] = circuit.eligibility_niches ?? [];
   const nicheOk = requiredNiches.length === 0 || niches.some(n => requiredNiches.includes(n));
+
+  if (circuit.min_followers != null) {
+    return nicheOk && numericStatus(circuit, creatorCounts ?? {}) === 'eligible';
+  }
 
   const pf = circuit.platform_followers;
   const selectedPlatforms = pf

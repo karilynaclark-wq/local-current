@@ -7,6 +7,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { Circuit, Post, FILLED_STATUSES } from '../../types';
+import { minFollowersLabel } from '../../lib/eligibility';
 import RequestsSection, { type RequestRow } from '../../components/RequestsSection';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
@@ -543,7 +544,15 @@ export default function BusinessCircuitDetailScreen() {
                   <Text style={styles.detailValue}>{circuit.max_redemptions}</Text>
                 </View>
               )}
-              {allowedRanges.length > 0 && (
+              {circuit.min_followers != null ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Minimum following</Text>
+                  <Text style={styles.detailValue}>
+                    {minFollowersLabel(circuit.min_followers)}
+                    {circuit.required_platform === 'tiktok' ? ' · TikTok' : circuit.required_platform === 'instagram' ? ' · Instagram' : ''}
+                  </Text>
+                </View>
+              ) : allowedRanges.length > 0 && (
                 <View style={styles.detailBlock}>
                   <Text style={styles.detailLabel}>Follower range</Text>
                   <View style={styles.chipRow}>

@@ -53,6 +53,8 @@ export interface Circuit {
   platform_followers: { tiktok?: string[]; instagram?: string[] } | null;
   max_redemptions: number | null;
   guest_count: number | null;
+  min_followers?: number | null;
+  required_platform?: 'tiktok' | 'instagram' | 'either' | null;
   starts_at: string | null;
   expires_at: string | null;
   voucher_description: string | null;

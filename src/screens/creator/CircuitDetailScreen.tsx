@@ -12,7 +12,8 @@ import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { getPushToken, sendPush } from '../../lib/notifications';
 import { trackEvent } from '../../lib/analytics';
-import { isEligibleForCircuit, currentlyEligibleRanges, creatorFollowersByPlatform, eligibilityStatus } from '../../lib/eligibility';
+import { isEligibleForCircuit, currentlyEligibleRanges, creatorFollowersByPlatform, eligibilityStatus, creatorFollowerCounts, minFollowersLabel, type PlatformCountMap } from '../../lib/eligibility';
+import { getConnections } from '../../lib/socialConnect';
 
 function useCountdown(target: string | null) {
   const [remaining, setRemaining] = useState('');
@@ -145,6 +146,7 @@ export default function CircuitDetailScreen() {
   const [role, setRole] = useState<string | null>(null);
   const [creatorFollowerRange, setCreatorFollowerRange] = useState<string | null>(null);
   const [creatorFollowers, setCreatorFollowers] = useState<{ tiktok?: string; instagram?: string }>({});
+  const [creatorCounts, setCreatorCounts] = useState<PlatformCountMap>({});
   const [showReqModal, setShowReqModal] = useState(false);
   // Free-text access details the business sent when approving the request.
   const [accessDetails, setAccessDetails] = useState<string | null>(null);
@@ -237,7 +239,7 @@ export default function CircuitDetailScreen() {
           }
           if (data?.role === 'creator') {
             supabase.from('creators').select('id, follower_range, niche, status, main_platform, secondary_platform, secondary_follower_range').eq('profile_id', user.id).single()
-              .then(({ data: creator }) => {
+              .then(async ({ data: creator }) => {
                 if (!creator) return;
                 setCreatorId(creator.id);
                 setCreatorStatus(creator.status ?? null);
@@ -247,8 +249,10 @@ export default function CircuitDetailScreen() {
                 setCreatorFollowerRange(range);
                 setCreatorFollowers(followers);
                 setCreatorNiches(niches);
-                setEligible(isEligibleForCircuit(circuit, range, niches, followers));
-                setEligStatus(eligibilityStatus(circuit, range, niches, followers));
+                const counts = creatorFollowerCounts(followers, await getConnections().catch(() => []));
+                setCreatorCounts(counts);
+                setEligible(isEligibleForCircuit(circuit, range, niches, followers, counts));
+                setEligStatus(eligibilityStatus(circuit, range, niches, followers, counts));
               });
           }
         });
@@ -937,7 +941,25 @@ export default function CircuitDetailScreen() {
             {pfKeys.length > 1 && (
               <Text style={styles.eitherNote}>You only need to qualify on one platform.</Text>
             )}
-            {pfKeys.length > 0 ? (
+            {circuit.min_followers != null ? (
+              pfKeys.map(p => {
+                const count = creatorCounts[p];
+                const met = count != null && count >= (circuit.min_followers as number);
+                return (
+                  <View key={p} style={styles.requirementRow}>
+                    <View style={styles.requirementLabelRow}>
+                      <Text style={styles.requirementLabel}>{p === 'tiktok' ? 'TIKTOK' : 'INSTAGRAM'} FOLLOWERS</Text>
+                      <Text style={met ? styles.requirementMet : styles.requirementUnmet}>
+                        {count != null ? `${met ? '✓' : '✗'} You have ${count.toLocaleString()}` : `✗ You're not on ${p === 'tiktok' ? 'TikTok' : 'Instagram'}`}
+                      </Text>
+                    </View>
+                    <View style={styles.chipRow}>
+                      <View style={styles.chip}><Text style={styles.chipText}>{minFollowersLabel(circuit.min_followers as number)}</Text></View>
+                    </View>
+                  </View>
+                );
+              })
+            ) : pfKeys.length > 0 ? (
               pfKeys.map(p => {
                 const ranges = pf![p] ?? [];
                 const myRange = creatorFollowers[p];
