@@ -81,7 +81,7 @@ export default function CreateCircuitScreen() {
   const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
   const [guestCount, setGuestCount] = useState<number>(1); // +1 friend is the most common offer
-  const [minFollowing, setMinFollowing] = useState<number | null>(null); // follower count
+  const [minFollowing, setMinFollowing] = useState<number | null>(5_000); // follower count
   const [showMinPicker, setShowMinPicker] = useState(false);
   const [platformChoice, setPlatformChoice] = useState<'either' | 'tiktok' | 'instagram'>('either');
   const [showPlatform, setShowPlatform] = useState(false);
@@ -95,7 +95,6 @@ export default function CreateCircuitScreen() {
   const platformFollowers = { tiktok: eligibleRanges, instagram: eligibleRanges };
 
   // Step 3
-  const [creatorNotes, setCreatorNotes] = useState('');
   const [startMonth, setStartMonth] = useState('');
   const [startDay, setStartDay] = useState('');
   const [startYear, setStartYear] = useState('');
@@ -143,7 +142,6 @@ export default function CreateCircuitScreen() {
         title,
         event_link: eventLink.trim() || null,
         description,
-        creator_notes: creatorNotes.trim() || null,
         redemption_type: 'code', // legacy column; access details are sent on approval
         eligibility_min_followers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
@@ -356,16 +354,6 @@ export default function CreateCircuitScreen() {
                   : `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''} = ${maxRedemptions} ticket${maxRedemptions > 1 ? 's' : ''} total`}
               </Text>
 
-              <Text style={[styles.label, styles.labelGap]}>Notes for creators (optional)</Text>
-              <TextInput
-                style={[styles.input, styles.multiline]}
-                value={creatorNotes}
-                onChangeText={setCreatorNotes}
-                placeholder="Anything creators should know — parking, who to ask for onsite, what to film, etc."
-                placeholderTextColor={C.muted2}
-                multiline
-                numberOfLines={4}
-              />
             </>
           )}
 
