@@ -540,7 +540,7 @@ export default function BusinessCircuitDetailScreen() {
               )}
               {circuit.max_redemptions != null && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Max creators</Text>
+                  <Text style={styles.detailLabel}>Creators getting tickets</Text>
                   <Text style={styles.detailValue}>{circuit.max_redemptions}</Text>
                 </View>
               )}
