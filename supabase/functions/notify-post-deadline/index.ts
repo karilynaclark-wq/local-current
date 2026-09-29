@@ -8,7 +8,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
-serve(async () => {
+serve(async (req) => {
+  const secret = Deno.env.get('CRON_SECRET');
+  if (secret && req.headers.get('x-cron-secret') !== secret) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+  }
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

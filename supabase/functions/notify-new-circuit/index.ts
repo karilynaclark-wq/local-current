@@ -18,12 +18,40 @@ serve(async (req) => {
   }
 
   try {
-    const { circuitTitle, businessName, eligibilityMinFollowers, eligibilityNiches } = await req.json();
+    const { circuitId } = await req.json();
+    if (!circuitId) {
+      return new Response(JSON.stringify({ error: 'circuitId required' }), { status: 400 });
+    }
+
+    // Identify the caller from their JWT.
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+    );
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+
+    // Only the business that owns the current can announce it, and the text
+    // comes from the database rather than the request.
+    const { data: circuit } = await supabase
+      .from('circuits')
+      .select('title, eligibility_min_followers, eligibility_niches, business:businesses(business_name, profile_id)')
+      .eq('id', circuitId)
+      .single();
+    const biz = (circuit as any)?.business;
+    if (!circuit || biz?.profile_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Not allowed' }), { status: 403 });
+    }
+    const circuitTitle = circuit.title;
+    const businessName = biz.business_name || 'A local business';
+    const eligibilityMinFollowers: string = circuit.eligibility_min_followers ?? '';
+    const eligibilityNiches: string[] = Array.isArray(circuit.eligibility_niches) ? circuit.eligibility_niches : [];
 
     // Fetch eligible approved creators with push tokens — server-side only
     const { data: creators } = await supabase

@@ -146,14 +146,7 @@ export default function CreateCircuitScreen() {
       if (error) throw error;
 
       // Notify eligible creators server-side — push tokens never leave the server
-      supabase.functions.invoke('notify-new-circuit', {
-        body: {
-          circuitTitle: title,
-          businessName: businessName || 'A local business',
-          eligibilityMinFollowers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
-          eligibilityNiches: [],
-        },
-      });
+      supabase.functions.invoke('notify-new-circuit', { body: { circuitId: circuit.id } });
 
       trackEvent('circuit_created', {
         circuit_id: circuit.id,
