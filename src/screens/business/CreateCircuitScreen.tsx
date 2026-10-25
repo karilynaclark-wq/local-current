@@ -19,19 +19,23 @@ const TIER_UPPER: Record<string, number> = {
 };
 const MAX_CREATORS = 50;
 
-const GUEST_OPTIONS = [
-  { label: 'No, this offer only covers the creator', value: 0 },
-  { label: '+ 1 friend', value: 1 },
-  { label: '+ 2 friends', value: 2 },
-  { label: '+ 3 friends', value: 3 },
-  { label: '+ 4 friends', value: 4 },
-  { label: '+ 5 friends', value: 5 },
-  { label: '+ 6 friends', value: 6 },
-  { label: '+ 7 friends', value: 7 },
-  { label: '+ 8 friends', value: 8 },
-  { label: '+ 9 friends', value: 9 },
-  { label: '+ 10 friends', value: 10 },
-];
+/** One code per line (commas also work); blanks and duplicates dropped. */
+function parseCodes(raw: string): string[] {
+  return [...new Set(raw.split(/[\n,]+/).map(c => c.trim()).filter(Boolean))];
+}
+
+/** Builds a Date from the step-1 fields, or null if incomplete/invalid. */
+function parseEventDate(m: string, d: string, y: string, time: string, pm: boolean): Date | null {
+  const mm = +m, dd = +d, yy = +y;
+  const t = time.match(/^(\d{1,2})(?::(\d{2}))?$/);
+  if (!mm || !dd || y.length !== 4 || !t) return null;
+  let h = +t[1]; const min = t[2] ? +t[2] : 0;
+  if (h < 1 || h > 12 || min > 59) return null;
+  if (h === 12) h = 0;
+  if (pm) h += 12;
+  const date = new Date(yy, mm - 1, dd, h, min);
+  return date.getMonth() === mm - 1 && date.getDate() === dd ? date : null;
+}
 
 function InfoModal({ visible, title, body, onClose }: { visible: boolean; title: string; body: string; onClose: () => void }) {
   return (
@@ -76,16 +80,25 @@ export default function CreateCircuitScreen() {
   const [title, setTitle] = useState('');
   const [eventLink, setEventLink] = useState('');
   const [description, setDescription] = useState('');
+  const [eventMonth, setEventMonth] = useState('');
+  const [eventDay, setEventDay] = useState('');
+  const [eventYear, setEventYear] = useState('');
+  const [eventTime, setEventTime] = useState('');
+  const [eventPm, setEventPm] = useState(true);
+  const eventAt = parseEventDate(eventMonth, eventDay, eventYear, eventTime, eventPm);
 
   // Step 2
   const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
-  const [guestCount, setGuestCount] = useState<number>(1); // +1 friend is the most common offer
+  const guestCount = 1; // every creator gets 2 tickets: them + a friend
+  const [codeMode, setCodeMode] = useState<'shared' | 'list'>('shared');
+  const [sharedCode, setSharedCode] = useState('');
+  const [codeList, setCodeList] = useState('');
+  const parsedCodes = parseCodes(codeList);
   const [minFollowing, setMinFollowing] = useState<number | null>(5_000); // follower count
   const [showMinPicker, setShowMinPicker] = useState(false);
   const [platformChoice, setPlatformChoice] = useState<'either' | 'tiktok' | 'instagram'>('either');
   const [showPlatform, setShowPlatform] = useState(false);
-  const [showGuestPicker, setShowGuestPicker] = useState(false);
 
   // Derived eligibility in the shape the rest of the app expects.
   // Legacy range fields: every tier that can contain someone at/above the minimum.
@@ -94,14 +107,6 @@ export default function CreateCircuitScreen() {
     platformChoice === 'either' ? ['tiktok', 'instagram'] : [platformChoice];
   const platformFollowers = { tiktok: eligibleRanges, instagram: eligibleRanges };
 
-  // Step 3
-  const [startMonth, setStartMonth] = useState('');
-  const [startDay, setStartDay] = useState('');
-  const [startYear, setStartYear] = useState('');
-  const [expMonth, setExpMonth] = useState('');
-  const [expDay, setExpDay] = useState('');
-  const [expYear, setExpYear] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [agreedToHonor, setAgreedToHonor] = useState(false);
   const [infoModal, setInfoModal] = useState<{ title: string; body: string } | null>(null);
@@ -109,11 +114,16 @@ export default function CreateCircuitScreen() {
   function validateStep(s: number): string | null {
     if (s === 1) {
       if (!title.trim()) return 'Please enter an event name.';
-      if (!eventLink.trim()) return 'Please add an event link.';
+      if (!eventLink.trim()) return 'Please add a link where creators can buy tickets.';
+      if (!eventAt) return 'Please enter the event date and time (e.g. 7:30).';
+      if (eventAt.getTime() < Date.now()) return 'The event date needs to be in the future.';
     }
     if (s === 2) {
       if (minFollowing === null) return 'Please choose a minimum following.';
       if (!maxRedemptions || maxRedemptions < 1) return 'Please choose how many creators get tickets.';
+      if (codeMode === 'shared' && !sharedCode.trim()) return 'Please add the ticket code creators will use.';
+      if (codeMode === 'list' && parsedCodes.length < maxRedemptions)
+        return `Please add at least ${maxRedemptions} codes, one for each creator (you have ${parsedCodes.length}).`;
     }
     return null;
   }
@@ -132,7 +142,7 @@ export default function CreateCircuitScreen() {
   async function handleCreate() {
     const err = validateStep(3);
     if (err) { Alert.alert('Required', err); return; }
-    if (!agreedToHonor) { Alert.alert('Required', 'Please acknowledge your responsibility to honor this offer.'); return; }
+    if (!agreedToHonor) { Alert.alert('Required', 'Please acknowledge your responsibility to honor these tickets.'); return; }
     if (!businessId) { Alert.alert('Error', 'Business profile not found.'); return; }
 
     setLoading(true);
@@ -142,7 +152,9 @@ export default function CreateCircuitScreen() {
         title,
         event_link: eventLink.trim() || null,
         description,
-        redemption_type: 'code', // legacy column; access details are sent on approval
+        redemption_type: 'code',
+        code_mode: codeMode,
+        event_at: eventAt!.toISOString(),
         eligibility_min_followers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
@@ -156,12 +168,21 @@ export default function CreateCircuitScreen() {
 
       if (error) throw error;
 
+      const codes = codeMode === 'shared' ? [sharedCode.trim()] : parsedCodes;
+      const { error: codeErr } = await supabase.from('circuit_codes')
+        .insert(codes.map(code => ({ circuit_id: circuit.id, code })));
+      if (codeErr) {
+        await supabase.from('circuits').delete().eq('id', circuit.id);
+        throw codeErr;
+      }
+
       // Notify eligible creators server-side — push tokens never leave the server
       supabase.functions.invoke('notify-new-circuit', { body: { circuitId: circuit.id } });
 
       trackEvent('circuit_created', {
         circuit_id: circuit.id,
-        flow: 'request',
+        flow: 'ticket',
+        code_mode: codeMode,
         max_redemptions: maxRedemptions,
         follower_ranges: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))],
       });
@@ -223,7 +244,30 @@ export default function CreateCircuitScreen() {
                 maxLength={35}
               />
 
-              <Text style={styles.label}>Event Link *</Text>
+              <Text style={styles.label}>Event date & time *</Text>
+              <View style={styles.dateRow}>
+                <TextInput style={[styles.input, styles.dateMM]} value={eventMonth} placeholder="MM" placeholderTextColor={C.muted2}
+                  keyboardType="number-pad" maxLength={2} onChangeText={t => setEventMonth(t.replace(/[^0-9]/g, ''))} />
+                <TextInput style={[styles.input, styles.dateMM]} value={eventDay} placeholder="DD" placeholderTextColor={C.muted2}
+                  keyboardType="number-pad" maxLength={2} onChangeText={t => setEventDay(t.replace(/[^0-9]/g, ''))} />
+                <TextInput style={[styles.input, styles.dateYY]} value={eventYear} placeholder="YYYY" placeholderTextColor={C.muted2}
+                  keyboardType="number-pad" maxLength={4} onChangeText={t => setEventYear(t.replace(/[^0-9]/g, ''))} />
+              </View>
+              <View style={styles.dateRow}>
+                <TextInput style={[styles.input, styles.dateYY]} value={eventTime} placeholder="7:30" placeholderTextColor={C.muted2}
+                  keyboardType="numbers-and-punctuation" maxLength={5} onChangeText={t => setEventTime(t.replace(/[^0-9:]/g, ''))} />
+                {(['AM', 'PM'] as const).map(p => {
+                  const on = (p === 'PM') === eventPm;
+                  return (
+                    <TouchableOpacity key={p} style={[styles.ampm, on && styles.chipSelected]} onPress={() => setEventPm(p === 'PM')}>
+                      <Text style={[styles.chipText, { color: C.ink }, on && styles.chipTextSelected]}>{p}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.label}>Ticket link *</Text>
+              <Text style={styles.hint}>Where creators buy tickets with your code.</Text>
               <TextInput
                 style={styles.input}
                 value={eventLink}
@@ -326,33 +370,49 @@ export default function CreateCircuitScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.label, styles.labelGap]}>Can creators bring friends? <Text style={styles.req}>*</Text></Text>
-              <TouchableOpacity style={styles.picker} onPress={() => setShowGuestPicker(v => !v)}>
-                <Text style={styles.pickerValue}>
-                  {GUEST_OPTIONS.filter(o => o.value === guestCount).map(opt => opt.value === 0 ? 'No, just them' : `Yes, ${opt.value} friend${opt.value > 1 ? 's' : ''}`)[0]}
-                </Text>
-                <Icon name="chevron-down" size={18} color={C.inkSoft} />
-              </TouchableOpacity>
-              {showGuestPicker && (
-                <View style={styles.pickerDropdown}>
-                  {GUEST_OPTIONS.map(opt => (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.pickerOption, guestCount === opt.value && styles.pickerOptionSelected]}
-                      onPress={() => { setGuestCount(opt.value); setShowGuestPicker(false); }}
-                    >
-                      <Text style={[styles.pickerOptionText, guestCount === opt.value && styles.pickerOptionTextSelected]}>
-                        {opt.value === 0 ? 'No, just them' : `Yes, ${opt.value} friend${opt.value > 1 ? 's' : ''}`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
               <Text style={styles.summary}>
-                {guestCount > 0
-                  ? `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''} with ${guestCount} friend${guestCount > 1 ? 's' : ''} each = ${maxRedemptions * (1 + guestCount)} tickets total`
-                  : `${maxRedemptions} creator${maxRedemptions > 1 ? 's' : ''} = ${maxRedemptions} ticket${maxRedemptions > 1 ? 's' : ''} total`}
+                Each creator gets 2 tickets (them + a friend) = {maxRedemptions * 2} tickets total
               </Text>
+
+              <Text style={[styles.label, styles.labelGap]}>Ticket code <Text style={styles.req}>*</Text></Text>
+              <Text style={styles.hint}>Creators enter this on your ticket site to get 2 free tickets.</Text>
+              <View style={styles.platformRow}>
+                {([['shared', 'One code for everyone'], ['list', 'Unique code per creator']] as const).map(([val, label]) => {
+                  const on = codeMode === val;
+                  return (
+                    <TouchableOpacity key={val} style={[styles.platformChip, on && styles.chipSelected]} onPress={() => setCodeMode(val)}>
+                      <Text style={[styles.chipText, { color: C.ink }, on && styles.chipTextSelected]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {codeMode === 'shared' ? (
+                <TextInput
+                  style={[styles.input, { marginTop: 12 }]}
+                  value={sharedCode}
+                  onChangeText={setSharedCode}
+                  placeholder="e.g. LOCALCURRENT"
+                  placeholderTextColor={C.muted2}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+              ) : (
+                <>
+                  <TextInput
+                    style={[styles.input, styles.multiline, { marginTop: 12 }]}
+                    value={codeList}
+                    onChangeText={setCodeList}
+                    placeholder={'One code per line\nLC-A1B2\nLC-C3D4'}
+                    placeholderTextColor={C.muted2}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    multiline
+                  />
+                  <Text style={[styles.hint, parsedCodes.length >= maxRedemptions && { color: C.ok }]}>
+                    {parsedCodes.length} of {maxRedemptions} codes added
+                  </Text>
+                </>
+              )}
 
             </>
           )}
@@ -369,7 +429,7 @@ export default function CreateCircuitScreen() {
                   {agreedToHonor && <Text style={styles.checkmark}>✓</Text>}
                 </View>
                 <Text style={styles.commitmentText}>
-                  By publishing this opportunity, I commit to honoring it as described. Failure to do so may result in suspension or removal from Local Current.
+                  By publishing this current, I commit to honoring it as described. Failure to do so may result in suspension or removal from Local Current.
                 </Text>
               </TouchableOpacity>
 
@@ -407,6 +467,13 @@ export default function CreateCircuitScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
+  dateRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  dateMM: { width: 64, textAlign: 'center' },
+  dateYY: { width: 96, textAlign: 'center' },
+  ampm: {
+    paddingHorizontal: 16, justifyContent: 'center', borderRadius: R.btn,
+    borderWidth: 1, borderColor: C.line2, backgroundColor: C.card,
+  },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -518,7 +585,6 @@ const styles = StyleSheet.create({
   visitOptionText: { fontFamily: F.bodyMedium, fontSize: 14, color: C.muted, lineHeight: 20 },
   visitOptionTextSelected: { fontFamily: F.bodySemi, color: C.accent },
 
-  dateRow: { flexDirection: 'row', gap: 8 },
   dateInputMonth: { width: 64, textAlign: 'center' },
   dateInputDay: { width: 64, textAlign: 'center' },
   dateInputYear: { flex: 1, textAlign: 'center' },

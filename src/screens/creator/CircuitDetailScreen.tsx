@@ -148,7 +148,7 @@ export default function CircuitDetailScreen() {
   const [creatorFollowers, setCreatorFollowers] = useState<{ tiktok?: string; instagram?: string }>({});
   const [creatorCounts, setCreatorCounts] = useState<PlatformCountMap>({});
   const [showReqModal, setShowReqModal] = useState(false);
-  // Free-text access details the business sent when approving the request.
+  // The ticket code handed out on claim (older claims: free-text access details).
   const [accessDetails, setAccessDetails] = useState<string | null>(null);
   const [detailsCopied, setDetailsCopied] = useState(false);
   const [requestedAt, setRequestedAt] = useState<string | null>(null);
@@ -194,7 +194,7 @@ export default function CircuitDetailScreen() {
         .then(({ data: creator }) => {
           if (!creator) return;
           supabase.from('redemptions')
-            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, requested_at, claimed_at')
+            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
@@ -208,7 +208,7 @@ export default function CircuitDetailScreen() {
                 if (existing.checked_in_at) {
                   setVoucherWindowEnd(new Date(new Date(existing.checked_in_at).getTime() + 4 * 60 * 60 * 1000).toISOString());
                 }
-                setAccessDetails(existing.access_details ?? null);
+                setAccessDetails(existing.code ?? existing.access_details ?? null);
                 setRequestedAt(existing.requested_at ?? existing.claimed_at ?? null);
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
@@ -259,7 +259,7 @@ export default function CircuitDetailScreen() {
     });
   }, []);
 
-  async function handleRequest() {
+  async function handleClaim() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -274,37 +274,26 @@ export default function CircuitDetailScreen() {
         .eq('creator_id', creator.id)
         .gte('claimed_at', fifteenMinutesAgo);
       if ((recentRequests ?? 0) > 0) {
-        Alert.alert('Slow down', 'You can only request one current every 15 minutes. Come back shortly!');
+        Alert.alert('Slow down', 'You can only claim one current every 15 minutes. Come back shortly!');
         return;
       }
 
-      // A previously withdrawn or expired request can be replaced.
-      if (redemptionId && (redemptionStatus === 'cancelled' || redemptionStatus === 'expired')) {
-        await supabase.from('redemptions').delete().eq('id', redemptionId);
-      }
-
-      const { data: redemption, error } = await supabase.from('redemptions').insert({
-        circuit_id: circuit.id,
-        creator_id: creator.id,
-        status: 'requested',
-      }).select().single();
+      // Server-side claim: checks spots + event date and hands out the code.
+      const { data: code, error } = await supabase.rpc('claim_current', { p_circuit_id: circuit.id });
       if (error) throw error;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      trackEvent('circuit_requested', { circuit_id: circuit.id, circuit_title: circuit.title, business_id: circuit.business_id });
+      trackEvent('circuit_claimed', { circuit_id: circuit.id, circuit_title: circuit.title, business_id: circuit.business_id });
 
       const { data: biz } = await supabase.from('businesses').select('profile_id').eq('id', circuit.business_id).single();
       if (biz?.profile_id) {
         const token = await getPushToken(biz.profile_id);
-        if (token) sendPush(token, 'New request 🙋', `${creatorName || 'A creator'} wants to join "${circuit.title}". Tap to review.`);
-        supabase.from('profiles').select('full_name').eq('id', biz.profile_id).single()
-          .then(({ data: p }) => { if (p?.full_name) setBusinessContactName(p.full_name); });
+        if (token) sendPush(token, 'Tickets claimed 🎟️', `${creatorName || 'A creator'} claimed tickets to "${circuit.title}".`);
       }
 
+      fetchRedemptionStatus();
       setHasClaimed(true);
-      setRedemptionStatus('requested');
-      setRedemptionId(redemption.id);
-      setRequestedAt(redemption.requested_at ?? new Date().toISOString());
-      setAccessDetails(null);
+      setRedemptionStatus('approved');
+      setAccessDetails(code ?? null);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -330,11 +319,11 @@ export default function CircuitDetailScreen() {
   const bookDateValid = !!(bookMonth && bookDay && bookYear);
 
   async function handleBooked() {
-    if (!redemptionId || !bookDateValid) return;
+    if (!redemptionId || (!bookDateValid && !eventAt)) return;
     setBooking(true);
     try {
       const now = new Date().toISOString();
-      const bookedNote = `${bookMonth.padStart(2, '0')}/${bookDay.padStart(2, '0')}/${bookYear}`;
+      const bookedNote = eventAt ? eventAt.toLocaleDateString('en-US') : `${bookMonth.padStart(2, '0')}/${bookDay.padStart(2, '0')}/${bookYear}`;
       // Mark as booked. Reuse checked_in_at/status so the post-submission step
       // unlocks. (booked_note stores the day; attempted separately so a missing
       // column doesn't block the core transition.)
@@ -394,7 +383,13 @@ export default function CircuitDetailScreen() {
   const eligiblePlatformLabel = qualifyingPlatforms
     .map(p => (p === 'tiktok' ? 'TikTok' : 'Instagram'))
     .join(' or ');
-  const isExpired = circuit.expires_at ? new Date(circuit.expires_at) < new Date() : false;
+  const eventAt = circuit.event_at ? new Date(circuit.event_at) : null;
+  const eventDateStr = eventAt
+    ? eventAt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
+      ' · ' + eventAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : null;
+  const isExpired = (circuit.expires_at ? new Date(circuit.expires_at) < new Date() : false)
+    || (eventAt ? eventAt < new Date() : false);
   const daysUntilExpiry = circuit.expires_at
     ? Math.ceil((new Date(circuit.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
@@ -494,14 +489,19 @@ export default function CircuitDetailScreen() {
               {circuit.guest_count != null && (
                 <View style={styles.miniCard}>
                   <View style={styles.miniIcon}><Icon name="person" size={16} color={C.accent} /></View>
-                  <Text style={styles.miniLabel}>EACH CREATOR GETS</Text>
+                  <Text style={styles.miniLabel}>YOU GET</Text>
                   <Text style={styles.miniValue}>
-                    {circuit.guest_count === 0 ? 'Just you' : `You + ${circuit.guest_count} friend${circuit.guest_count > 1 ? 's' : ''}`}
+                    {circuit.guest_count === 0 ? '1 ticket' : `${1 + circuit.guest_count} tickets`}
                   </Text>
                 </View>
               )}
             </View>
 
+            {eventDateStr ? (
+              <View style={styles.eventCard}>
+                <Text style={styles.eventCardLabel}>{eventDateStr}</Text>
+              </View>
+            ) : null}
             {circuit.event_link ? (
               <TouchableOpacity style={styles.eventCard} onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.8}>
                 <Text style={styles.eventCardLabel}>View event page</Text>
@@ -550,12 +550,15 @@ export default function CircuitDetailScreen() {
 
         {isApproved && (
           <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>You're in! 🎉 {circuit.title}</Text>
+            <Text style={styles.stateTitle}>Your tickets 🎟️ {circuit.title}</Text>
+            {eventDateStr ? <Text style={styles.stepNote}>{eventDateStr}</Text> : null}
 
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>1</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Here's what {circuit.business?.business_name ?? 'the business'} sent you:</Text>
+                <Text style={styles.stepText}>
+                  {(circuit.guest_count ?? 1) > 0 ? 'Use this code to get 2 free tickets (you + a friend):' : 'Use this code to get your free ticket:'}
+                </Text>
                 {accessDetails ? (
                   <TouchableOpacity
                     style={styles.detailsBox}
@@ -574,16 +577,11 @@ export default function CircuitDetailScreen() {
                     </View>
                   </TouchableOpacity>
                 ) : (
-                  <Text style={styles.stepNote}>Check with the business for your access details.</Text>
-                )}
-                {(circuit.guest_count ?? 0) > 0 && (
-                  <Text style={styles.stepNote}>
-                    Covers you + {circuit.guest_count} friend{(circuit.guest_count ?? 0) > 1 ? 's' : ''}.
-                  </Text>
+                  <Text style={styles.stepNote}>Check with the business for your ticket code.</Text>
                 )}
                 {circuit.event_link ? (
                   <TouchableOpacity onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.7}>
-                    <Text style={styles.eventLinkText}>Open event page →</Text>
+                    <Text style={styles.eventLinkText}>Buy tickets →</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -592,7 +590,7 @@ export default function CircuitDetailScreen() {
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>2</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Book your spot, then tap the button below to tell us what day you're going.</Text>
+                <Text style={styles.stepText}>Enter the code at checkout, then tap "I got my tickets" below.</Text>
               </View>
             </View>
 
@@ -752,7 +750,7 @@ export default function CircuitDetailScreen() {
               <Text style={styles.unclaimBtnText}>Report an issue</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.unclaimBtn} onPress={() => setShowUnclaimModal(true)}>
-              <Text style={styles.unclaimBtnText}>{isRequested ? 'Withdraw request' : 'Give up my spot'}</Text>
+              <Text style={styles.unclaimBtnText}>{isRequested ? 'Withdraw request' : 'Give up my tickets'}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -777,8 +775,12 @@ export default function CircuitDetailScreen() {
             <Text style={styles.infoNoteText}>This opp is only available to Creators</Text>
           </View>
         ) : isApproved ? (
-          <TouchableOpacity style={styles.button} onPress={() => setShowBookModal(true)}>
-            <Text style={styles.buttonText}>I booked tickets on…</Text>
+          <TouchableOpacity
+            style={[styles.button, booking && styles.buttonDisabled]}
+            onPress={() => (eventAt ? handleBooked() : setShowBookModal(true))}
+            disabled={booking}
+          >
+            <Text style={styles.buttonText}>I got my tickets</Text>
           </TouchableOpacity>
         ) : hasClaimed && redemptionStatus === 'checked_in' ? (
           <TouchableOpacity
@@ -798,13 +800,13 @@ export default function CircuitDetailScreen() {
         : isClosedRequest && !canRequestAgain ? null // declined
         : isFull ? (
           <View style={styles.ineligibleNote}>
-            <Text style={styles.ineligibleText}>No spots left</Text>
-            <Text style={styles.ineligibleSub}>All creator spots for this current have been filled</Text>
+            <Text style={styles.ineligibleText}>No tickets left</Text>
+            <Text style={styles.ineligibleSub}>Every creator spot for this event has been claimed</Text>
           </View>
         ) : isExpired ? (
           <View style={styles.ineligibleNote}>
-            <Text style={styles.ineligibleText}>This current has expired</Text>
-            <Text style={styles.ineligibleSub}>The business is no longer accepting requests</Text>
+            <Text style={styles.ineligibleText}>This event has passed</Text>
+            <Text style={styles.ineligibleSub}>Tickets are no longer available</Text>
           </View>
         ) : eligStatus === 'soon' ? (
           <View style={styles.ineligibleNote}>
@@ -822,7 +824,7 @@ export default function CircuitDetailScreen() {
             onPress={() => creatorStatus === 'pending' ? setShowPendingModal(true) : setShowClaimModal(true)}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{canRequestAgain ? 'Request again' : 'Request to join'}</Text>
+            <Text style={styles.buttonText}>Claim tickets</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -849,12 +851,12 @@ export default function CircuitDetailScreen() {
       <Modal visible={showClaimModal} transparent animationType="fade" onRequestClose={() => setShowClaimModal(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowClaimModal(false)}>
           <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Request to join?</Text>
+            <Text style={styles.modalTitle}>Claim your tickets?</Text>
 
             <View style={styles.claimRow}>
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
-                <Text style={styles.claimBold}>The business reviews your profile</Text> and, if approved, sends you access details (a code, a list spot, or a ticket link).
+                You'll get a <Text style={styles.claimBold}>code for 2 free tickets</Text> (you + a friend) to buy online right away.
               </Text>
             </View>
             <View style={styles.claimRow}>
@@ -876,8 +878,8 @@ export default function CircuitDetailScreen() {
                 No-shows or skipping the post can get you removed from the app.
               </Text>
             </View>
-            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); handleRequest(); }} disabled={loading}>
-              <Text style={styles.buttonText}>{loading ? 'Sending…' : 'I understand, send request'}</Text>
+            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); handleClaim(); }} disabled={loading}>
+              <Text style={styles.buttonText}>{loading ? 'Claiming…' : 'I understand, claim tickets'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowClaimModal(false)}>
               <Text style={styles.modalCancelText}>Never mind</Text>
@@ -894,10 +896,10 @@ export default function CircuitDetailScreen() {
             <Text style={styles.modalBody}>
               {isRequested
                 ? "The business won't see your request anymore."
-                : "Backing out after being approved can count against you. You're freeing this spot for another creator."}
+                : "Backing out after claiming can count against you. Don't use the code if you give up your tickets."}
             </Text>
             <TouchableOpacity style={[styles.unclaimConfirmBtn, loading && styles.buttonDisabled]} onPress={handleWithdraw} disabled={loading}>
-              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? 'Yes, withdraw' : 'Yes, give up my spot'}</Text>
+              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? 'Yes, withdraw' : 'Yes, give up my tickets'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowUnclaimModal(false)}>
               <Text style={styles.modalCancelText}>Nevermind</Text>

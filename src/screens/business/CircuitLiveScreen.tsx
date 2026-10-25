@@ -8,8 +8,8 @@ const LIVE_GREEN = '#3F8F5B';
 const LIVE_GREEN_TINT = '#E7F1E9';
 
 const STEPS: { icon: any; title: string; desc: string; notify: boolean }[] = [
-  { icon: 'film', title: 'Creators request to join', desc: 'Approve the ones you like and send them their access details.', notify: true },
-  { icon: 'check', title: 'They attend', desc: 'Using the code, list spot, or link you sent.', notify: false },
+  { icon: 'film', title: 'Creators claim tickets', desc: 'They get your code and buy 2 free tickets on your ticket site.', notify: true },
+  { icon: 'check', title: 'They attend', desc: 'With a friend, on the day of your event.', notify: false },
   { icon: 'sparkles', title: 'They post their review', desc: 'Real video content, straight to their page.', notify: true },
   { icon: 'eye', title: 'You track the results', desc: 'Views, reach and visits, all in one place.', notify: false },
 ];

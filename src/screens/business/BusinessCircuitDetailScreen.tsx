@@ -8,7 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { Circuit, Post, FILLED_STATUSES } from '../../types';
 import { minFollowersLabel } from '../../lib/eligibility';
-import RequestsSection, { type RequestRow } from '../../components/RequestsSection';
+import ClaimsSection, { type ClaimRow } from '../../components/ClaimsSection';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
 
@@ -236,6 +236,7 @@ interface RedemptionWithRating {
   requested_at: string | null;
   claimed_at: string | null;
   access_details: string | null;
+  code?: string | null;
   creator_id: string | null;
   business_rating: number | null;
   business_rated_at: string | null;
@@ -250,6 +251,7 @@ export default function BusinessCircuitDetailScreen() {
 
   const [posts, setPosts] = useState<(Post & { creatorName?: string; creatorHandle?: string })[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionWithRating[]>([]);
+  const [codes, setCodes] = useState<{ code: string; redemption_id: string | null }[]>([]);
   const [stats, setStats] = useState({ claims: 0, checkins: 0, posts: 0, views: 0, likes: 0, comments: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -279,11 +281,13 @@ export default function BusinessCircuitDetailScreen() {
       .eq('id', route.params.circuit.id)
       .single();
     if (freshCircuit) setCircuit(freshCircuit);
+    supabase.from('circuit_codes').select('code, redemption_id').eq('circuit_id', route.params.circuit.id)
+      .then(({ data }) => setCodes(data ?? []));
     setCircuitLoaded(true);
 
     const claimsRes = await supabase
       .from('redemptions')
-      .select('id, status, creator_id, business_rating, business_rated_at, requested_at, claimed_at, access_details')
+      .select('id, status, creator_id, business_rating, business_rated_at, requested_at, claimed_at, access_details, code')
       .eq('circuit_id', route.params.circuit.id);
     const redemptionData: RedemptionWithRating[] = claimsRes.data ?? [];
     const redemptionIds = redemptionData.map((r: any) => r.id);
@@ -480,10 +484,9 @@ export default function BusinessCircuitDetailScreen() {
             <Text style={styles.circuitTitle}>{circuit.title}</Text>
             {!!circuit.description && <Text style={styles.circuitDesc}>{circuit.description}</Text>}
 
-            <RequestsSection
+            <ClaimsSection
               circuit={circuit}
-              rows={redemptions as unknown as RequestRow[]}
-              onChanged={loadData}
+              rows={redemptions as unknown as ClaimRow[]}
               onOpenCreator={creatorId => navigation.navigate('CreatorPublicProfile', { creatorId })}
             />
 
@@ -492,9 +495,9 @@ export default function BusinessCircuitDetailScreen() {
             <View style={styles.statsRow}>
               {[
                 {
-                  num: stats.claims, label: 'Approved',
+                  num: stats.claims, label: 'Claimed',
                   onPress: () => setCreatorListModal({
-                    title: 'Approved',
+                    title: 'Claimed',
                     creators: redemptions
                       .filter((r: any) => FILLED_STATUSES.includes(r.status))
                       .map((r: any) => r.creator).filter(Boolean),
@@ -529,12 +532,31 @@ export default function BusinessCircuitDetailScreen() {
             </>)}
 
             <View style={styles.detailSection}>
-              <Text style={styles.detailSectionTitle}>Opp details</Text>
+              <Text style={styles.detailSectionTitle}>Event details</Text>
+              {circuit.event_at && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Event date</Text>
+                  <Text style={styles.detailValue}>
+                    {new Date(circuit.event_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {' · '}{new Date(circuit.event_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </Text>
+                </View>
+              )}
               {circuit.guest_count != null && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Each creator gets</Text>
                   <Text style={styles.detailValue}>
-                    {circuit.guest_count === 0 ? 'Just them' : `Them + ${circuit.guest_count} friend${circuit.guest_count > 1 ? 's' : ''}`}
+                    {circuit.guest_count === 0 ? '1 ticket' : `${1 + circuit.guest_count} tickets`}
+                  </Text>
+                </View>
+              )}
+              {codes.length > 0 && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Ticket code</Text>
+                  <Text style={styles.detailValue} selectable>
+                    {circuit.code_mode === 'list'
+                      ? `${codes.length} unique · ${codes.filter(c => !c.redemption_id).length} left`
+                      : codes[0].code}
                   </Text>
                 </View>
               )}

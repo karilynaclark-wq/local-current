@@ -41,7 +41,7 @@ serve(async (req) => {
     // comes from the database rather than the request.
     const { data: circuit } = await supabase
       .from('circuits')
-      .select('title, eligibility_min_followers, eligibility_niches, min_followers, required_platform, business:businesses(business_name, profile_id)')
+      .select('title, event_at, eligibility_min_followers, eligibility_niches, min_followers, required_platform, business:businesses(business_name, profile_id)')
       .eq('id', circuitId)
       .single();
     const biz = (circuit as any)?.business;
@@ -49,6 +49,9 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Not allowed' }), { status: 403 });
     }
     const circuitTitle = circuit.title;
+    const eventDate = circuit.event_at
+      ? new Date(circuit.event_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
+      : null;
     const businessName = biz.business_name || 'A local business';
     const eligibilityMinFollowers: string = circuit.eligibility_min_followers ?? '';
     const eligibilityNiches: string[] = Array.isArray(circuit.eligibility_niches) ? circuit.eligibility_niches : [];
@@ -116,8 +119,8 @@ serve(async (req) => {
 
     const messages = tokens.map((to: string) => ({
       to,
-      title: `New current in your area 📍`,
-      body: `${businessName} just posted: "${circuitTitle}"`,
+      title: `Free tickets 🎟️`,
+      body: `${businessName}: "${circuitTitle}"${eventDate ? ` on ${eventDate}` : ''}. Claim 2 tickets before they're gone.`,
       sound: 'default',
     }));
 

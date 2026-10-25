@@ -55,6 +55,8 @@ export interface Circuit {
   guest_count: number | null;
   min_followers?: number | null;
   required_platform?: 'tiktok' | 'instagram' | 'either' | null;
+  event_at?: string | null;
+  code_mode?: 'shared' | 'list' | null;
   starts_at: string | null;
   expires_at: string | null;
   voucher_description: string | null;
@@ -75,7 +77,7 @@ export function countFilled(redemptions?: { status?: string | null }[] | null): 
   return (redemptions ?? []).filter(r => FILLED_STATUSES.includes(r.status as RedemptionStatus)).length;
 }
 
-export type RequestChip = 'requested' | 'approved' | 'redeemed' | 'completed' | 'declined' | 'expired' | 'withdrawn';
+export type RequestChip = 'requested' | 'claimed' | 'redeemed' | 'completed' | 'declined' | 'expired' | 'withdrawn';
 
 /** Chip for a creator's own redemption. */
 export function requestChipFor(status: string | null | undefined, hasPost = false): RequestChip {
@@ -85,7 +87,7 @@ export function requestChipFor(status: string | null | undefined, hasPost = fals
     case 'expired': return 'expired';
     case 'cancelled': return 'withdrawn';
     case 'completed': return hasPost ? 'completed' : 'redeemed';
-    default: return 'approved'; // approved, checked_in, legacy claimed
+    default: return 'claimed'; // approved, checked_in, legacy claimed
   }
 }
 
