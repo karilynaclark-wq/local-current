@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { countFilled, requestChipFor } from '../../types';
+import { countFilled, eventDateLabel, requestChipFor } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon, Mark } from '../../components/Icon';
 import { Logo } from '../../components/Logo';
@@ -169,7 +169,7 @@ export default function MyCircuitsScreen() {
           <StatusChip status={status}/>
         </View>
         <View style={styles.cardRow}>
-          <View style={{ flex: 1 }}/>
+          <Text style={[styles.linkText, { flex: 1, color: C.muted }]}>{eventDateLabel(item.circuit) ?? ''}</Text>
           <View style={styles.linkRow}>
             <Text style={styles.linkText}>View details</Text>
             <Icon name="arrow" size={14} color={C.accent}/>
@@ -196,6 +196,7 @@ export default function MyCircuitsScreen() {
             )}
           </View>
           <Text style={styles.bizTitle} numberOfLines={2}>{item.title}</Text>
+          {!!eventDateLabel(item) && <Text style={styles.bizDate}>{eventDateLabel(item)}</Text>}
         </View>
         <View style={styles.chevronCircle}>
           <Icon name="chevron-right" size={14} color={C.accent} />
@@ -260,6 +261,7 @@ export default function MyCircuitsScreen() {
                   <Text style={styles.bizEyebrow} numberOfLines={1}>{(c.business?.business_name ?? '').toUpperCase()}</Text>
                 </View>
                 <Text style={styles.bizTitle} numberOfLines={2}>{c.title}</Text>
+                {!!eventDateLabel(c) && <Text style={styles.bizDate}>{eventDateLabel(c)}</Text>}
               </View>
             </View>
           ))
@@ -370,6 +372,7 @@ const styles = StyleSheet.create({
   bizEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   bizEyebrow: { fontFamily: F.monoBold, fontSize: 10.5, letterSpacing: 0.8, color: C.muted, flexShrink: 1 },
+  bizDate: { fontFamily: F.body, fontSize: 13, color: C.muted, marginTop: 4 },
   bizTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 16, letterSpacing: -0.2, color: C.ink },
   chevronCircle: {
     width: 32, height: 32, borderRadius: 16, backgroundColor: C.accentTint,

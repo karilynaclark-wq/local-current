@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { requestChipFor } from '../../types';
+import { eventDateLabel, requestChipFor } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { StatusChip } from '../../components/UI';
@@ -108,6 +108,12 @@ export default function MyRedemptionsScreen() {
                 <Text style={[styles.cardTitle, { flex: 1, marginRight: 10 }]} numberOfLines={2}>{circuit?.title}</Text>
                 <StatusChip status={chip} />
               </View>
+{!!eventDateLabel(circuit) && (
+                <View style={styles.locRow}>
+                  <Icon name="calendar" size={13} color={C.accent} />
+                  <Text style={[styles.locText, { color: C.ink }]}>{eventDateLabel(circuit)}</Text>
+                </View>
+              )}
               {!!circuit?.description && (
                 <Text style={styles.cardDesc} numberOfLines={2}>{circuit.description}</Text>
               )}

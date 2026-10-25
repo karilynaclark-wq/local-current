@@ -35,13 +35,8 @@ function useCountdown(target: string | null) {
   return { remaining, expired };
 }
 
-function formatRef(id: string) {
-  const clean = id.replace(/-/g, '').toUpperCase();
-  return `CRT-${clean.slice(0, 4)}-${clean.slice(4, 8)}`;
-}
-
 const REPORT_OPTIONS = [
-  { value: 'not_honored', label: "Business didn't honor the voucher" },
+  { value: 'not_honored', label: "Business didn't honor the ticket code" },
   { value: 'negative_experience', label: 'Experience was negative' },
   { value: 'other', label: 'Something else' },
 ];
@@ -152,10 +147,6 @@ export default function CircuitDetailScreen() {
   const [accessDetails, setAccessDetails] = useState<string | null>(null);
   const [detailsCopied, setDetailsCopied] = useState(false);
   const [requestedAt, setRequestedAt] = useState<string | null>(null);
-  const [showBookModal, setShowBookModal] = useState(false);
-  const [bookMonth, setBookMonth] = useState('');
-  const [bookDay, setBookDay] = useState('');
-  const [bookYear, setBookYear] = useState('');
   const [booking, setBooking] = useState(false);
   const [creatorNiches, setCreatorNiches] = useState<string[]>([]);
   const [eligible, setEligible] = useState<boolean | null>(null);
@@ -165,14 +156,13 @@ export default function CircuitDetailScreen() {
   const [redemptionId, setRedemptionId] = useState<string | null>(null);
   const [hasPost, setHasPost] = useState(false);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
-  const [businessContactName, setBusinessContactName] = useState<string | null>(null);
   const [voucherWindowEnd, setVoucherWindowEnd] = useState<string | null>(null);
   const [problemReportedAt, setProblemReportedAt] = useState<string | null>(null);
 
   const postDeadline = checkedInAt
     ? new Date(new Date(checkedInAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
     : null;
-  const { remaining: voucherRemaining, expired: voucherExpired } = useCountdown(voucherWindowEnd);
+  const { expired: voucherExpired } = useCountdown(voucherWindowEnd);
   const { remaining: postRemaining, expired: postExpired } = useCountdown(postDeadline);
 
   // Auto-redeem when the 4-hour check-in window closes
@@ -227,16 +217,6 @@ export default function CircuitDetailScreen() {
         .then(({ data }) => {
           setRole(data?.role ?? null);
           if (data?.full_name) setCreatorName(data.full_name);
-          // Fetch business contact name from the business owner's profile
-          if (circuit.business_id) {
-            supabase.from('businesses').select('profile_id').eq('id', circuit.business_id).single()
-              .then(({ data: biz }) => {
-                if (biz?.profile_id) {
-                  supabase.from('profiles').select('full_name').eq('id', biz.profile_id).single()
-                    .then(({ data: p }) => { if (p?.full_name) setBusinessContactName(p.full_name); });
-                }
-              });
-          }
           if (data?.role === 'creator') {
             supabase.from('creators').select('id, follower_range, niche, status, main_platform, secondary_platform, secondary_follower_range').eq('profile_id', user.id).single()
               .then(async ({ data: creator }) => {
@@ -316,14 +296,15 @@ export default function CircuitDetailScreen() {
     }
   }
 
-  const bookDateValid = !!(bookMonth && bookDay && bookYear);
 
   async function handleBooked() {
-    if (!redemptionId || (!bookDateValid && !eventAt)) return;
+    if (!redemptionId) return;
     setBooking(true);
     try {
-      const now = new Date().toISOString();
-      const bookedNote = eventAt ? eventAt.toLocaleDateString('en-US') : `${bookMonth.padStart(2, '0')}/${bookDay.padStart(2, '0')}/${bookYear}`;
+      // The 48h posting window (app + server reminders) runs from checked_in_at,
+      // so anchor it to the event itself rather than when tickets were bought.
+      const now = (eventAt && eventAt > new Date() ? eventAt : new Date()).toISOString();
+      const bookedNote = (eventAt ?? new Date()).toLocaleDateString('en-US');
       // Mark as booked. Reuse checked_in_at/status so the post-submission step
       // unlocks. (booked_note stores the day; attempted separately so a missing
       // column doesn't block the core transition.)
@@ -337,7 +318,6 @@ export default function CircuitDetailScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setRedemptionStatus('checked_in');
       setCheckedInAt(now);
-      setShowBookModal(false);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -345,7 +325,6 @@ export default function CircuitDetailScreen() {
     }
   }
 
-  const isVoucher = circuit.redemption_type === 'voucher';
   const allowedRanges = circuit.eligibility_min_followers
     ? circuit.eligibility_min_followers.split(',').map(r => r.trim())
     : [];
@@ -611,72 +590,12 @@ export default function CircuitDetailScreen() {
         )}
 
         {/* ── State 2a: Booked (code current) — attend & post ── */}
-        {hasClaimed && redemptionStatus === 'checked_in' && !isVoucher && (
+        {hasClaimed && redemptionStatus === 'checked_in' && (
           <View style={[styles.stateBox, styles.stateBoxComplete]}>
             <Text style={[styles.stateTitle, { color: C.ok }]}>You're booked! 🎟️</Text>
             <Text style={styles.stepText}>
               Enjoy the event, then post your video review within 48 hours and submit the link below.
             </Text>
-          </View>
-        )}
-
-        {/* ── State 2: Checked in — show voucher ── */}
-        {hasClaimed && redemptionStatus === 'checked_in' && isVoucher && (
-          <View style={styles.voucherBox}>
-            <View style={styles.voucherTopRow}>
-              <View style={styles.voucherIcon}>
-                <Icon name="lock" size={18} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.voucherBoxTitle}>In-Person Voucher</Text>
-                <Text style={styles.voucherBoxSub}>Show this to staff when you arrive</Text>
-              </View>
-              <View style={styles.voucherValidBadge}>
-                <View style={styles.voucherValidDot} />
-                <Text style={styles.voucherValidText}>VALID</Text>
-              </View>
-            </View>
-
-            {circuit.description ? (
-              <Text style={styles.voucherBoxDesc}>{circuit.description}</Text>
-            ) : null}
-
-            <View style={styles.voucherMeta}>
-              {creatorName ? (
-                <>
-                  <View style={styles.voucherMetaRow}>
-                    <Text style={styles.voucherMetaLabel}>CREATOR</Text>
-                    <Text style={styles.voucherMetaValue}>{creatorName}</Text>
-                  </View>
-                  <View style={styles.voucherMetaSep} />
-                </>
-              ) : null}
-              {businessContactName ? (
-                <>
-                  <View style={styles.voucherMetaRow}>
-                    <Text style={styles.voucherMetaLabel}>POINT OF CONTACT</Text>
-                    <Text style={styles.voucherMetaValue}>{businessContactName}</Text>
-                  </View>
-                  <View style={styles.voucherMetaSep} />
-                </>
-              ) : null}
-              {redemptionId ? (
-                <>
-                  <View style={styles.voucherMetaRow}>
-                    <Text style={styles.voucherMetaLabel}>REF</Text>
-                    <Text style={styles.voucherRefValue}>{formatRef(redemptionId)}</Text>
-                  </View>
-                  <View style={styles.voucherMetaSep} />
-                </>
-              ) : null}
-              <View style={styles.voucherTimerRow}>
-                <View style={styles.voucherLiveDot} />
-                <Text style={styles.voucherLiveText}>Live</Text>
-                <Text style={[styles.voucherTimerText, voucherExpired && styles.voucherExpired]}>
-                  {voucherExpired ? 'EXPIRED' : voucherRemaining}
-                </Text>
-              </View>
-            </View>
           </View>
         )}
 
@@ -710,7 +629,7 @@ export default function CircuitDetailScreen() {
               {!postExpired && (
                 <>
                   <View style={styles.postBoxTimerRow}>
-                    <Icon name="clock" size={12} color={C.accent} />
+                    <Icon name="bell" size={12} color={C.accent} />
                     <Text style={styles.postBoxTimerLabel}>TIME LEFT</Text>
                     <Text style={styles.postBoxTimerValue}>{hLeft}h {mLeft}m</Text>
                   </View>
@@ -777,7 +696,7 @@ export default function CircuitDetailScreen() {
         ) : isApproved ? (
           <TouchableOpacity
             style={[styles.button, booking && styles.buttonDisabled]}
-            onPress={() => (eventAt ? handleBooked() : setShowBookModal(true))}
+            onPress={handleBooked}
             disabled={booking}
           >
             <Text style={styles.buttonText}>I got my tickets</Text>
@@ -912,53 +831,6 @@ export default function CircuitDetailScreen() {
         <ReportModal visible={showReport} redemptionId={redemptionId} onClose={() => setShowReport(false)} />
       )}
 
-      {/* Booked-day modal */}
-      <Modal visible={showBookModal} transparent animationType="fade" onRequestClose={() => setShowBookModal(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => !booking && setShowBookModal(false)}>
-          <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Sweet! Which day are you attending the event?</Text>
-            <View style={styles.bookDateRow}>
-              <TextInput
-                style={[styles.bookInput, styles.bookDateMonth]}
-                value={bookMonth}
-                onChangeText={t => setBookMonth(t.replace(/[^0-9]/g, '').slice(0, 2))}
-                placeholder="MM"
-                placeholderTextColor={C.muted2}
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-              <TextInput
-                style={[styles.bookInput, styles.bookDateDay]}
-                value={bookDay}
-                onChangeText={t => setBookDay(t.replace(/[^0-9]/g, '').slice(0, 2))}
-                placeholder="DD"
-                placeholderTextColor={C.muted2}
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-              <TextInput
-                style={[styles.bookInput, styles.bookDateYear]}
-                value={bookYear}
-                onChangeText={t => setBookYear(t.replace(/[^0-9]/g, '').slice(0, 4))}
-                placeholder="YYYY"
-                placeholderTextColor={C.muted2}
-                keyboardType="number-pad"
-                maxLength={4}
-              />
-            </View>
-            <TouchableOpacity
-              style={[styles.button, (!bookDateValid || booking) && styles.buttonDisabled]}
-              onPress={handleBooked}
-              disabled={!bookDateValid || booking}
-            >
-              <Text style={styles.buttonText}>{booking ? 'Saving…' : 'Confirm'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowBookModal(false)}>
-              <Text style={styles.modalCancelText}>Never mind</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Requirements detail modal */}
       <Modal visible={showReqModal} transparent animationType="fade" onRequestClose={() => setShowReqModal(false)}>
@@ -1076,14 +948,6 @@ const styles = StyleSheet.create({
   codeCopy: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   codeCopyText: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent },
   eventLinkText: { fontFamily: F.bodySemi, fontSize: 14, color: C.accent, marginTop: 2 },
-  bookDateRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  bookInput: {
-    fontFamily: F.body, borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md,
-    padding: 13, fontSize: 15, color: C.ink, backgroundColor: C.paper, textAlign: 'center',
-  },
-  bookDateMonth: { flex: 1 },
-  bookDateDay: { flex: 1 },
-  bookDateYear: { flex: 1.4 },
 
   eligPill: {
     flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
@@ -1123,27 +987,6 @@ const styles = StyleSheet.create({
   stepBulletText: { fontFamily: F.monoBold, color: '#fff', fontSize: 11 },
   stepText: { fontFamily: F.body, fontSize: 14, color: C.inkSoft, lineHeight: 20 },
   stepNote: { fontFamily: F.body, fontSize: 12, color: C.muted, lineHeight: 17, marginTop: 4, fontStyle: 'italic' },
-  // Voucher (checked_in state)
-  voucherBox: { backgroundColor: C.accentTint, borderRadius: R.md, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.accentSoft },
-  voucherTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
-  voucherIcon: { width: 40, height: 40, borderRadius: R.md, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  voucherBoxTitle: { fontFamily: F.bodySemi, fontSize: 14, color: C.ink },
-  voucherBoxSub: { fontFamily: F.body, fontSize: 12, color: C.muted, marginTop: 2 },
-  voucherValidBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.okSoft, borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 4, marginTop: 2 },
-  voucherValidDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.ok },
-  voucherValidText: { fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1, color: C.ok },
-  voucherBoxDesc: { fontFamily: F.body, fontSize: 13, color: C.inkSoft, lineHeight: 19, marginBottom: 12 },
-  voucherMeta: { borderTopWidth: 1, borderTopColor: C.accentSoft, paddingTop: 12 },
-  voucherMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
-  voucherMetaSep: { height: 1, backgroundColor: C.accentSoft },
-  voucherMetaLabel: { fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.muted2, textTransform: 'uppercase' },
-  voucherMetaValue: { fontFamily: F.bodySemi, fontSize: 14, color: C.ink },
-  voucherRefValue: { fontFamily: F.monoBold, fontSize: 14, color: C.ink, letterSpacing: 1.5 },
-  voucherTimerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
-  voucherLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.ok },
-  voucherLiveText: { fontFamily: F.body, fontSize: 13, color: C.muted },
-  voucherTimerText: { fontFamily: F.monoBold, fontSize: 15, color: C.ink, letterSpacing: 2 },
-  voucherExpired: { color: '#DC2626' },
   // Post timer (completed, no post)
   postBox: { backgroundColor: C.accentTint, borderRadius: R.md, padding: 14, marginBottom: 16 },
   postBoxOverdue: { backgroundColor: '#FEF2F2' },

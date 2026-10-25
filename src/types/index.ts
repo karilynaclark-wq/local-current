@@ -65,6 +65,14 @@ export interface Circuit {
   business?: Business;
 }
 
+/** "Sat, Nov 8 · 7:30 PM" for a current's event, or null if it has no date. */
+export function eventDateLabel(c?: { event_at?: string | null } | null): string | null {
+  if (!c?.event_at) return null;
+  const d = new Date(c.event_at);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 export type RedemptionStatus =
   | 'requested' | 'approved' | 'declined' | 'expired' | 'cancelled'
   | 'claimed' | 'checked_in' | 'completed';

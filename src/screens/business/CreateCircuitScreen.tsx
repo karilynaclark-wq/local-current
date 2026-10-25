@@ -162,7 +162,7 @@ export default function CreateCircuitScreen() {
         guest_count: guestCount,
         min_followers: minFollowing,
         starts_at: new Date().toISOString().split('T')[0],
-        expires_at: null,
+        expires_at: eventAt!.toISOString(), // closes automatically once the event starts
         is_active: true,
       }).select().single();
 

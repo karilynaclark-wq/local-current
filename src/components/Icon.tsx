@@ -10,7 +10,7 @@ type IconName =
   | 'search' | 'plus' | 'person' | 'clipboard' | 'pin' | 'link'
   | 'arrow' | 'back' | 'close' | 'gear' | 'check' | 'star' | 'star-fill'
   | 'bell' | 'eye' | 'film' | 'phone' | 'switch' | 'logout' | 'storefront'
-  | 'sparkles' | 'trophy' | 'mark' | 'chevron-down' | 'chevron-right' | 'cog';
+  | 'sparkles' | 'trophy' | 'mark' | 'chevron-down' | 'chevron-right' | 'cog' | 'calendar';
 
 interface IconProps {
   name: IconName;
@@ -77,6 +77,8 @@ export function Icon({ name, size = 22, color = '#241D17', stroke = 2 }: IconPro
       return <Svg {...props}><Path d="M9 6l6 6-6 6" {...s}/></Svg>;
     case 'chevron-down':
       return <Svg {...props}><Path d="M6 9l6 6 6-6" {...s}/></Svg>;
+    case 'calendar':
+      return <Svg {...props}><Path d="M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM16 3v4M8 3v4M3 11h18" {...s}/></Svg>;
     case 'cog':
       return <Svg {...props}><Path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" {...s}/><Circle cx="12" cy="12" r="3" {...s}/></Svg>;
     default:

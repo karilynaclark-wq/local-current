@@ -1,4 +1,7 @@
--- ── Ticketed events: instant claim + promo code ─────────────────────────────
+-- ── Ticketed events, PART A (safe to run any time) ──────────────────────────
+-- Additive only: new columns + the claim_current RPC. The App Store version
+-- (request → approve flow) keeps working, so the new build can be tested now.
+-- Run ticketed_events_b_cutover.sql once the new build is live.
 -- Every current is now an event. The business gives each creator 2 tickets
 -- (creator + friend) and uploads either one shared promo code or a list of
 -- unique codes. Creators claim instantly via claim_current(), which copies the
@@ -10,12 +13,7 @@ ALTER TABLE circuits ADD COLUMN IF NOT EXISTS event_at TIMESTAMPTZ;
 ALTER TABLE circuits ADD COLUMN IF NOT EXISTS code_mode TEXT
   CHECK (code_mode IN ('shared', 'list'));
 
--- 2) Hide existing currents that have no ticket code
-UPDATE circuits ci SET is_active = false
- WHERE ci.code_mode IS NULL
-   AND NOT EXISTS (SELECT 1 FROM circuit_codes cc WHERE cc.circuit_id = ci.id);
-
--- 3) Claim: checks eligibility-independent rules server-side and hands out a code.
+-- 2) Claim: checks eligibility-independent rules server-side and hands out a code.
 CREATE OR REPLACE FUNCTION claim_current(p_circuit_id UUID) RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -94,42 +92,5 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION claim_current(UUID) TO authenticated;
-
--- 4) Guard: app users can no longer insert redemptions directly (claims go
---    through claim_current) and can't change the code.
-CREATE OR REPLACE FUNCTION guard_redemption_status() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-  IF current_user NOT IN ('authenticated', 'anon') THEN
-    RETURN NEW;
-  END IF;
-  IF TG_OP = 'INSERT' THEN
-    RAISE EXCEPTION 'Claim tickets from the app';
-  END IF;
-  IF NEW.access_details IS DISTINCT FROM OLD.access_details
-     OR NEW.responded_at IS DISTINCT FROM OLD.responded_at
-     OR NEW.code IS DISTINCT FROM OLD.code THEN
-    RAISE EXCEPTION 'Not allowed to change claim details';
-  END IF;
-  IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
-       (OLD.status IN ('requested', 'approved', 'claimed') AND NEW.status = 'cancelled')
-    OR (OLD.status IN ('approved', 'claimed') AND NEW.status = 'checked_in')
-    OR (OLD.status IN ('approved', 'claimed', 'checked_in') AND NEW.status = 'completed')
-  ) THEN
-    RAISE EXCEPTION 'Not allowed to change status from % to %', OLD.status, NEW.status;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
--- 5) Pending requests from the old flow become claims only if re-claimed;
---    close them out so they don't linger.
-UPDATE redemptions SET status = 'expired' WHERE status = 'requested';
-
--- 6) Retire request expiry cron (ignore if it was never scheduled)
-DO $$ BEGIN
-  PERFORM cron.unschedule('expire-requests-hourly');
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
 
 NOTIFY pgrst, 'reload schema';

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { Circuit, requestChipFor, type RequestChip } from '../../types';
+import { Circuit, eventDateLabel, requestChipFor, type RequestChip } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { Logo } from '../../components/Logo';
@@ -184,6 +184,12 @@ export default function CreatorHomeScreen() {
                 <Text style={[styles.cardTitle, { flex: 1, marginRight: 10 }]} numberOfLines={2}>{item.title}</Text>
                 {chipStatus ? <StatusChip status={chipStatus} /> : null}
               </View>
+{!!eventDateLabel(item) && (
+                <View style={styles.locRow}>
+                  <Icon name="calendar" size={13} color={C.accent} />
+                  <Text style={[styles.locText, { color: C.ink }]}>{eventDateLabel(item)}</Text>
+                </View>
+              )}
               {!!item.description && (
                 <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
               )}
