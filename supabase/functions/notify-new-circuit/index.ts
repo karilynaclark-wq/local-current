@@ -1,140 +1,176 @@
 // Edge Function: notify-new-circuit
-// Finds eligible approved creators for a circuit and sends them a push notification.
-// Push tokens never leave the server — called by business clients after publishing.
+// Push notifications for new currents, staged by follower tier: larger accounts
+// get first access and each smaller tier opens 24h later (same schedule as
+// src/lib/eligibility.ts currentThreshold and the claim_current RPC).
+//
+// Two modes:
+//  - { circuitId } from the owning business right after publishing: notifies
+//    creators whose tier is open now.
+//  - Hourly cron (x-cron-secret header): for every live current, notifies the
+//    creators whose tier opened since the last run.
+// circuits.notified_threshold records the lowest follower count already
+// notified, so nobody is notified twice. Push tokens never leave the server.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const DAY = 86_400_000;
+
+// Keep in sync with MIN_FOLLOWER_OPTIONS in src/lib/eligibility.ts.
+const STAGES = [150_000, 100_000, 50_000, 25_000, 10_000, 5_000, 0];
+const TIER_FLOOR: Record<string, number> = {
+  'Under 1K': 0, '1K–5K': 1000, '5K–10K': 5000, '10K–50K': 10000, '50K–100K': 50000, '100K+': 100000,
+};
+
+function currentThreshold(min: number, createdAt: string): number {
+  const stages = STAGES.filter((v) => v >= min);
+  if (!stages.length) return min;
+  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / DAY);
+  return stages[Math.min(Math.max(days, 0), stages.length - 1)];
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+
+/** Best follower count on the platforms the current allows (verified, else tier floor). */
+function bestCount(c: any, verified: Record<string, Record<string, number>>, requiredPlatform: string): number | null {
+  const tiers: Record<string, string> = {};
+  if (c.main_platform && c.follower_range) tiers[c.main_platform.toLowerCase()] = c.follower_range;
+  if (c.secondary_platform && c.secondary_follower_range) tiers[c.secondary_platform.toLowerCase()] = c.secondary_follower_range;
+  const platforms = requiredPlatform === 'tiktok' || requiredPlatform === 'instagram' ? [requiredPlatform] : ['tiktok', 'instagram'];
+  let best: number | null = null;
+  for (const p of platforms) {
+    const n = verified[c.profile_id]?.[p] ?? (tiers[p] != null ? TIER_FLOOR[tiers[p]] : undefined);
+    if (n != null && (best == null || n > best)) best = n;
+  }
+  return best;
+}
+
+/**
+ * Notify approved creators whose best count is in [from, below) for one current.
+ * `below` = null means no upper bound. Returns the number of pushes sent.
+ */
+async function notifyBand(db: SupabaseClient, circuit: any, from: number, below: number | null, opened: boolean) {
+  const { data: creators } = await db
+    .from('creators')
+    .select('id, profile_id, follower_range, niche, main_platform, secondary_platform, secondary_follower_range, profile:profiles(push_token)')
+    .eq('status', 'approved');
+  if (!creators?.length) return 0;
+
+  const { data: conns } = await db
+    .from('social_connections')
+    .select('profile_id, platform, follower_count')
+    .eq('connection_type', 'oauth');
+  const verified: Record<string, Record<string, number>> = {};
+  for (const c of conns ?? []) (verified[c.profile_id] ??= {})[c.platform] = c.follower_count ?? 0;
+
+  // Skip creators who already claimed this current.
+  const { data: claimed } = await db.from('redemptions').select('creator_id').eq('circuit_id', circuit.id);
+  const claimedIds = new Set((claimed ?? []).map((r: any) => r.creator_id));
+
+  const niches: string[] = Array.isArray(circuit.eligibility_niches) ? circuit.eligibility_niches : [];
+  const tokens = (creators as any[])
+    .filter((c) => {
+      if (!c.profile?.push_token || claimedIds.has(c.id)) return false;
+      const n = bestCount(c, verified, circuit.required_platform ?? 'either');
+      if (n == null || n < from || (below != null && n >= below)) return false;
+      if (niches.length > 0) {
+        const mine: string[] = c.niche ? c.niche.split(',').map((x: string) => x.trim()) : [];
+        if (!niches.some((x) => mine.includes(x))) return false;
+      }
+      return true;
+    })
+    .map((c) => c.profile.push_token as string)
+    .filter((t) => t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['));
+  if (!tokens.length) return 0;
+
+  const businessName = circuit.business?.business_name || 'A local business';
+  const eventDate = circuit.event_at
+    ? new Date(circuit.event_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
+    : null;
+  const what = `"${circuit.title}"${eventDate ? ` on ${eventDate}` : ''}`;
+  const messages = tokens.map((to) => ({
+    to,
+    title: 'Free tickets 🎟️',
+    body: opened
+      ? `${businessName}: ${what} just opened to you. Claim 2 tickets before they're gone.`
+      : `${businessName}: ${what}. Claim 2 tickets before they're gone.`,
+    sound: 'default',
+  }));
+  // Expo accepts up to 100 messages per request.
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch(EXPO_PUSH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(messages.slice(i, i + 100)),
+    });
+  }
+  return tokens.length;
+}
+
+const CIRCUIT_FIELDS =
+  'id, title, event_at, created_at, is_active, min_followers, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
       },
     });
   }
 
   try {
-    const { circuitId } = await req.json();
-    if (!circuitId) {
-      return new Response(JSON.stringify({ error: 'circuitId required' }), { status: 400 });
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    // ── Cron mode: open the next tier on every live current ──
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    if (req.headers.get('x-cron-secret')) {
+      if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) return json({ error: 'Forbidden' }, 403);
+      const { data: circuits } = await db
+        .from('circuits')
+        .select(CIRCUIT_FIELDS)
+        .eq('is_active', true)
+        .not('min_followers', 'is', null)
+        .gt('event_at', new Date().toISOString());
+      let sent = 0;
+      for (const c of circuits ?? []) {
+        const threshold = currentThreshold(c.min_followers, c.created_at);
+        if (c.notified_threshold != null && threshold >= c.notified_threshold) continue;
+        // null = the publish-time announcement never went out; send it now.
+        sent += await notifyBand(db, c, threshold, c.notified_threshold, c.notified_threshold != null);
+        await db.from('circuits').update({ notified_threshold: threshold }).eq('id', c.id);
+      }
+      return json({ sent });
     }
 
-    // Identify the caller from their JWT.
+    // ── Publish mode: called by the owning business ──
+    const { circuitId } = await req.json();
+    if (!circuitId) return json({ error: 'circuitId required' }, 400);
+
     const userClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
     );
     const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, 401);
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const { data: circuit } = await db.from('circuits').select(CIRCUIT_FIELDS).eq('id', circuitId).single();
+    if (!circuit || (circuit as any).business?.profile_id !== user.id) return json({ error: 'Not allowed' }, 403);
+    if (circuit.notified_threshold != null) return json({ sent: 0 }); // already announced
 
-    // Only the business that owns the current can announce it, and the text
-    // comes from the database rather than the request.
-    const { data: circuit } = await supabase
-      .from('circuits')
-      .select('title, event_at, eligibility_min_followers, eligibility_niches, min_followers, required_platform, business:businesses(business_name, profile_id)')
-      .eq('id', circuitId)
-      .single();
-    const biz = (circuit as any)?.business;
-    if (!circuit || biz?.profile_id !== user.id) {
-      return new Response(JSON.stringify({ error: 'Not allowed' }), { status: 403 });
-    }
-    const circuitTitle = circuit.title;
-    const eventDate = circuit.event_at
-      ? new Date(circuit.event_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
-      : null;
-    const businessName = biz.business_name || 'A local business';
-    const eligibilityMinFollowers: string = circuit.eligibility_min_followers ?? '';
-    const eligibilityNiches: string[] = Array.isArray(circuit.eligibility_niches) ? circuit.eligibility_niches : [];
-
-    // Fetch eligible approved creators with push tokens — server-side only
-    const { data: creators } = await supabase
-      .from('creators')
-      .select('profile_id, follower_range, niche, main_platform, secondary_platform, secondary_follower_range, profile:profiles(push_token)')
-      .eq('status', 'approved');
-
-    if (!creators?.length) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
-    }
-
-    const allowedRanges: string[] = eligibilityMinFollowers
-      ? eligibilityMinFollowers.split(',').map((r: string) => r.trim())
-      : [];
-    const requiredNiches: string[] = eligibilityNiches ?? [];
-
-    // Numeric minimum: verified follower counts, else the floor of the creator's tier.
-    const minFollowers: number | null = (circuit as any).min_followers ?? null;
-    const requiredPlatform: string = (circuit as any).required_platform ?? 'either';
-    const TIER_FLOOR: Record<string, number> = {
-      'Under 1K': 0, '1K–5K': 1000, '5K–10K': 5000, '10K–50K': 10000, '50K–100K': 50000, '100K+': 100000,
-    };
-    const verified: Record<string, Record<string, number>> = {};
-    if (minFollowers != null) {
-      const { data: conns } = await supabase
-        .from('social_connections')
-        .select('profile_id, platform, follower_count')
-        .eq('connection_type', 'oauth');
-      for (const c of conns ?? []) {
-        (verified[c.profile_id] ??= {})[c.platform] = c.follower_count ?? 0;
-      }
-    }
-    function meetsMinimum(c: any): boolean {
-      const tiers: Record<string, string> = {};
-      if (c.main_platform && c.follower_range) tiers[c.main_platform.toLowerCase()] = c.follower_range;
-      if (c.secondary_platform && c.secondary_follower_range) tiers[c.secondary_platform.toLowerCase()] = c.secondary_follower_range;
-      const platforms = requiredPlatform === 'either' ? ['tiktok', 'instagram'] : [requiredPlatform];
-      return platforms.some((p) => {
-        const count = verified[c.profile_id]?.[p] ?? (tiers[p] != null ? TIER_FLOOR[tiers[p]] : undefined);
-        return count != null && count >= (minFollowers as number);
-      });
-    }
-
-    const tokens = (creators as any[])
-      .filter((c) => {
-        if (!c.profile?.push_token) return false;
-        if (minFollowers != null) {
-          if (!meetsMinimum(c)) return false;
-        } else if (allowedRanges.length > 0 && !allowedRanges.includes(c.follower_range)) return false;
-        if (requiredNiches.length > 0) {
-          const cNiches: string[] = c.niche ? c.niche.split(',').map((n: string) => n.trim()) : [];
-          if (!requiredNiches.some((n) => cNiches.includes(n))) return false;
-        }
-        return true;
-      })
-      .map((c) => c.profile.push_token)
-      .filter((t: string) => t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['));
-
-    if (!tokens.length) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
-    }
-
-    const messages = tokens.map((to: string) => ({
-      to,
-      title: `Free tickets 🎟️`,
-      body: `${businessName}: "${circuitTitle}"${eventDate ? ` on ${eventDate}` : ''}. Claim 2 tickets before they're gone.`,
-      sound: 'default',
-    }));
-
-    await fetch(EXPO_PUSH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(messages),
-    });
-
-    return new Response(JSON.stringify({ sent: tokens.length }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    const min = circuit.min_followers ?? 0;
+    const threshold = currentThreshold(min, circuit.created_at);
+    const sent = await notifyBand(db, circuit, threshold, null, false);
+    await db.from('circuits').update({ notified_threshold: threshold }).eq('id', circuitId);
+    return json({ sent });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return json({ error: err.message }, 500);
   }
 });
