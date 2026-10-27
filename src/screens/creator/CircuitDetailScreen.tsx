@@ -367,6 +367,12 @@ export default function CircuitDetailScreen() {
     ? eventAt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
       ' · ' + eventAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     : null;
+  const daysToEvent = eventAt
+    ? Math.round((new Date(eventAt).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000)
+    : null;
+  // "West Loop" from an address like "123 Main St, West Loop, Chicago"
+  const addrParts = (circuit.business?.address ?? '').split(',').map(x => x.trim()).filter(Boolean);
+  const neighborhood = addrParts.length >= 3 ? addrParts[addrParts.length - 2] : null;
   const isExpired = (circuit.expires_at ? new Date(circuit.expires_at) < new Date() : false)
     || (eventAt ? eventAt < new Date() : false);
   const daysUntilExpiry = circuit.expires_at
@@ -405,7 +411,7 @@ export default function CircuitDetailScreen() {
             <Text style={styles.expiredBannerText}>This current has expired and is no longer accepting claims.</Text>
           </View>
         )}
-        {expiresSoon && (!hasClaimed || isClosedRequest) && (
+        {expiresSoon && !eventAt && (!hasClaimed || isClosedRequest) && (
           <View style={styles.expiresSoonBanner}>
             <Icon name="bell" size={15} color="#92400E" />
             <Text style={styles.expiredBannerText}>
@@ -414,13 +420,59 @@ export default function CircuitDetailScreen() {
           </View>
         )}
 
-        <Text style={styles.eyebrow}>HOSTED BY {circuit.business?.business_name}</Text>
+        {/* ── Event hero: what, when, where ── */}
+        <Text style={styles.eyebrow}>
+          {circuit.business?.business_name}{neighborhood ? `  ·  ${neighborhood}` : ''}
+        </Text>
         <Text style={styles.title}>{circuit.title}</Text>
+
+        {eventAt && (
+          <View style={styles.whenRow}>
+            <View style={styles.calTile}>
+              <Text style={styles.calMonth}>{eventAt.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}</Text>
+              <Text style={styles.calDay}>{eventAt.getDate()}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.whenDay}>{eventAt.toLocaleDateString('en-US', { weekday: 'long' })}</Text>
+              <Text style={styles.whenTime}>
+                {eventAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {daysToEvent != null && daysToEvent >= 0 ? `  ·  ${daysToEvent === 0 ? 'Today' : daysToEvent === 1 ? 'Tomorrow' : `in ${daysToEvent} days`}` : ''}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {circuit.description ? <Text style={styles.leadDesc}>{circuit.description}</Text> : null}
 
         {(!hasClaimed || isClosedRequest) && (
           <>
+            {/* The perk */}
+            <View style={styles.perkCard}>
+              <Text style={styles.perkEyebrow}>ON THE HOUSE</Text>
+              <Text style={styles.perkTitle}>
+                {(circuit.guest_count ?? 1) > 0 ? '2 free tickets' : '1 free ticket'}
+              </Text>
+              <Text style={styles.perkSub}>
+                {(circuit.guest_count ?? 1) > 0 ? 'For you and a friend. ' : ''}
+                All you do is go, enjoy it, and post an honest video{postOnLabel ? ` on ${postOnLabel}` : ''}.
+              </Text>
+              {circuit.max_redemptions != null && (
+                <Text style={styles.perkSpots}>Only {circuit.max_redemptions} creators get in</Text>
+              )}
+            </View>
+
+            {circuit.event_link ? (
+              <TouchableOpacity style={styles.eventCard} onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.8}>
+                <Text style={styles.eventCardLabel}>See the full event</Text>
+                <View style={styles.eventCardOpen}>
+                  <Text style={styles.eventCardOpenText}>Open</Text>
+                  <Icon name="arrow" size={14} color={C.accent} />
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Who can go — secondary */}
+            <Text style={styles.reqHeader}>WHO CAN GO</Text>
             {eligStatus !== null && (() => {
               const tone = eligStatus === 'eligible' ? C.ok : eligStatus === 'soon' ? C.accent : C.muted;
               const pillStyle = eligStatus === 'eligible' ? styles.eligPillOk : eligStatus === 'soon' ? styles.eligPillSoon : styles.eligPillNo;
@@ -442,54 +494,20 @@ export default function CircuitDetailScreen() {
                 </TouchableOpacity>
               );
             })()}
-
-            <View style={styles.miniGrid}>
+            <View style={styles.reqRow}>
               {effectiveMin != null && (
-                <View style={styles.miniCard}>
-                  <View style={styles.miniIcon}><Icon name="trophy" size={16} color={C.accent} /></View>
-                  <Text style={styles.miniLabel}>MIN FOLLOWING</Text>
-                  <Text style={styles.miniValue}>{minFollowersLabel(effectiveMin)}</Text>
+                <View style={styles.reqChip}>
+                  <Icon name="trophy" size={13} color={C.muted} />
+                  <Text style={styles.reqChipText}>{minFollowersLabel(effectiveMin)} followers</Text>
                 </View>
               )}
               {postOnLabel ? (
-                <View style={styles.miniCard}>
-                  <View style={styles.miniIcon}><Icon name="film" size={16} color={C.accent} /></View>
-                  <Text style={styles.miniLabel}>POST ON</Text>
-                  <Text style={styles.miniValue}>{postOnLabel}</Text>
+                <View style={styles.reqChip}>
+                  <Icon name="film" size={13} color={C.muted} />
+                  <Text style={styles.reqChipText}>Post on {postOnLabel}</Text>
                 </View>
               ) : null}
-              {circuit.max_redemptions != null && (
-                <View style={styles.miniCard}>
-                  <View style={styles.miniIcon}><Icon name="sparkles" size={16} color={C.accent} /></View>
-                  <Text style={styles.miniLabel}>CREATORS GETTING TICKETS</Text>
-                  <Text style={styles.miniValue}>{circuit.max_redemptions}</Text>
-                </View>
-              )}
-              {circuit.guest_count != null && (
-                <View style={styles.miniCard}>
-                  <View style={styles.miniIcon}><Icon name="person" size={16} color={C.accent} /></View>
-                  <Text style={styles.miniLabel}>YOU GET</Text>
-                  <Text style={styles.miniValue}>
-                    {circuit.guest_count === 0 ? '1 ticket' : `${1 + circuit.guest_count} tickets`}
-                  </Text>
-                </View>
-              )}
             </View>
-
-            {eventDateStr ? (
-              <View style={styles.eventCard}>
-                <Text style={styles.eventCardLabel}>{eventDateStr}</Text>
-              </View>
-            ) : null}
-            {circuit.event_link ? (
-              <TouchableOpacity style={styles.eventCard} onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.8}>
-                <Text style={styles.eventCardLabel}>View event page</Text>
-                <View style={styles.eventCardOpen}>
-                  <Text style={styles.eventCardOpenText}>Open</Text>
-                  <Icon name="arrow" size={14} color={C.accent} />
-                </View>
-              </TouchableOpacity>
-            ) : null}
           </>
         )}
 
@@ -931,9 +949,33 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
   scroll: { padding: 24 },
   back: { marginBottom: 20 },
-  eyebrow: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.accent, textTransform: 'uppercase', marginBottom: 6 },
-  title: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 26, letterSpacing: -0.4, color: C.ink, marginBottom: 12 },
-  leadDesc: { fontFamily: F.body, fontSize: 15, color: C.muted, lineHeight: 22, marginBottom: 20 },
+  eyebrow: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.accent, textTransform: 'uppercase', marginBottom: 8 },
+  title: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 32, lineHeight: 36, letterSpacing: -0.8, color: C.ink, marginBottom: 18 },
+  leadDesc: { fontFamily: F.body, fontSize: 16.5, color: C.inkSoft, lineHeight: 25, marginBottom: 22 },
+  whenRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
+  calTile: {
+    width: 58, height: 62, borderRadius: R.md, backgroundColor: C.card,
+    borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', ...(S.card as any),
+  },
+  calMonth: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, color: C.accent },
+  calDay: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 24, color: C.ink, marginTop: -2 },
+  whenDay: { fontFamily: F.display, fontWeight: '700', fontSize: 17, color: C.ink },
+  whenTime: { fontFamily: F.body, fontSize: 14.5, color: C.muted, marginTop: 2 },
+  perkCard: {
+    backgroundColor: C.accentTint, borderRadius: R.lg, padding: 18, marginBottom: 12,
+    borderWidth: 1, borderColor: C.accentSoft,
+  },
+  perkEyebrow: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.4, color: C.accent, marginBottom: 4 },
+  perkTitle: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 24, letterSpacing: -0.4, color: C.ink },
+  perkSub: { fontFamily: F.body, fontSize: 14.5, color: C.inkSoft, lineHeight: 21, marginTop: 6 },
+  perkSpots: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent, marginTop: 10 },
+  reqHeader: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.muted2, marginTop: 18, marginBottom: 10 },
+  reqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  reqChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: R.pill, backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
+  },
+  reqChipText: { fontFamily: F.bodyMedium, fontSize: 13, color: C.inkSoft },
   codeBox: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: C.paper, borderWidth: 1.5, borderColor: C.accent, borderStyle: 'dashed',
