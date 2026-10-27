@@ -136,10 +136,11 @@ serve(async (req) => {
         .from('circuits')
         .select(CIRCUIT_FIELDS)
         .eq('is_active', true)
-        .not('min_followers', 'is', null)
-        .gt('event_at', new Date().toISOString());
+        .not('min_followers', 'is', null);
       let sent = 0;
       for (const c of circuits ?? []) {
+        // Events usually have no date now; skip only ones whose date has passed.
+        if (c.event_at && new Date(c.event_at).getTime() < Date.now()) continue;
         const threshold = currentThreshold(c.min_followers, c.created_at);
         if (c.notified_threshold != null && threshold >= c.notified_threshold) continue;
         // null = the publish-time announcement never went out; send it now.

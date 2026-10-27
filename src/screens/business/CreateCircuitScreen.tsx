@@ -24,19 +24,6 @@ function parseCodes(raw: string): string[] {
   return [...new Set(raw.split(/[\n,]+/).map(c => c.trim()).filter(Boolean))];
 }
 
-/** Builds a Date from the step-1 fields, or null if incomplete/invalid. */
-function parseEventDate(m: string, d: string, y: string, time: string, pm: boolean): Date | null {
-  const mm = +m, dd = +d, yy = +y;
-  const t = time.match(/^(\d{1,2})(?::(\d{2}))?$/);
-  if (!mm || !dd || y.length !== 4 || !t) return null;
-  let h = +t[1]; const min = t[2] ? +t[2] : 0;
-  if (h < 1 || h > 12 || min > 59) return null;
-  if (h === 12) h = 0;
-  if (pm) h += 12;
-  const date = new Date(yy, mm - 1, dd, h, min);
-  return date.getMonth() === mm - 1 && date.getDate() === dd ? date : null;
-}
-
 function InfoModal({ visible, title, body, onClose }: { visible: boolean; title: string; body: string; onClose: () => void }) {
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -80,12 +67,6 @@ export default function CreateCircuitScreen() {
   const [title, setTitle] = useState('');
   const [eventLink, setEventLink] = useState('');
   const [description, setDescription] = useState('');
-  const [eventMonth, setEventMonth] = useState('');
-  const [eventDay, setEventDay] = useState('');
-  const [eventYear, setEventYear] = useState('');
-  const [eventTime, setEventTime] = useState('');
-  const [eventPm, setEventPm] = useState(true);
-  const eventAt = parseEventDate(eventMonth, eventDay, eventYear, eventTime, eventPm);
 
   // Step 2
   const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
@@ -115,8 +96,6 @@ export default function CreateCircuitScreen() {
     if (s === 1) {
       if (!title.trim()) return 'Please enter an event name.';
       if (!eventLink.trim()) return 'Please add a link where creators can buy tickets.';
-      if (!eventAt) return 'Please enter the event date and time (e.g. 7:30).';
-      if (eventAt.getTime() < Date.now()) return 'The event date needs to be in the future.';
     }
     if (s === 2) {
       if (minFollowing === null) return 'Please choose a minimum following.';
@@ -154,7 +133,6 @@ export default function CreateCircuitScreen() {
         description,
         redemption_type: 'code',
         code_mode: codeMode,
-        event_at: eventAt!.toISOString(),
         eligibility_min_followers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
@@ -162,7 +140,7 @@ export default function CreateCircuitScreen() {
         guest_count: guestCount,
         min_followers: minFollowing,
         starts_at: new Date().toISOString().split('T')[0],
-        expires_at: eventAt!.toISOString(), // closes automatically once the event starts
+        expires_at: null, // stays open until every spot is claimed or the business pauses it
         is_active: true,
       }).select().single();
 
@@ -243,28 +221,6 @@ export default function CreateCircuitScreen() {
                 autoCapitalize="words"
                 maxLength={35}
               />
-
-              <Text style={styles.label}>Event date & time *</Text>
-              <View style={styles.dateRow}>
-                <TextInput style={[styles.input, styles.dateMM]} value={eventMonth} placeholder="MM" placeholderTextColor={C.muted2}
-                  keyboardType="number-pad" maxLength={2} onChangeText={t => setEventMonth(t.replace(/[^0-9]/g, ''))} />
-                <TextInput style={[styles.input, styles.dateMM]} value={eventDay} placeholder="DD" placeholderTextColor={C.muted2}
-                  keyboardType="number-pad" maxLength={2} onChangeText={t => setEventDay(t.replace(/[^0-9]/g, ''))} />
-                <TextInput style={[styles.input, styles.dateYY]} value={eventYear} placeholder="YYYY" placeholderTextColor={C.muted2}
-                  keyboardType="number-pad" maxLength={4} onChangeText={t => setEventYear(t.replace(/[^0-9]/g, ''))} />
-              </View>
-              <View style={styles.dateRow}>
-                <TextInput style={[styles.input, styles.dateYY]} value={eventTime} placeholder="7:30" placeholderTextColor={C.muted2}
-                  keyboardType="numbers-and-punctuation" maxLength={5} onChangeText={t => setEventTime(t.replace(/[^0-9:]/g, ''))} />
-                {(['AM', 'PM'] as const).map(p => {
-                  const on = (p === 'PM') === eventPm;
-                  return (
-                    <TouchableOpacity key={p} style={[styles.ampm, on && styles.chipSelected]} onPress={() => setEventPm(p === 'PM')}>
-                      <Text style={[styles.chipText, { color: C.ink }, on && styles.chipTextSelected]}>{p}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
 
               <Text style={styles.label}>Ticket link *</Text>
               <Text style={styles.hint}>Where creators buy tickets with your code.</Text>
@@ -467,13 +423,6 @@ export default function CreateCircuitScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
-  dateRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  dateMM: { width: 64, textAlign: 'center' },
-  dateYY: { width: 96, textAlign: 'center' },
-  ampm: {
-    paddingHorizontal: 16, justifyContent: 'center', borderRadius: R.btn,
-    borderWidth: 1, borderColor: C.line2, backgroundColor: C.card,
-  },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

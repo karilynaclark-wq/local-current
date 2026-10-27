@@ -15,8 +15,11 @@ type Db = any;
 
 const TAG_RE = /(^|[^a-z0-9_])(#localcurrent|@localcurrentapp)(?![a-z0-9_])/i;
 const DAY = 86_400_000;
-// A post counts for an event if it goes up between the claim and 7 days after.
+// A post counts for a claim if it goes up after the claim and within 7 days of
+// the visit (event date, or the day the creator said they booked). With
+// neither, it counts for 60 days after claiming.
 const POST_WINDOW_DAYS = 7;
+const NO_DATE_WINDOW_DAYS = 60;
 const OPEN_STATUSES = ['approved', 'claimed', 'checked_in', 'completed'];
 
 export interface NormalizedPost {
@@ -90,6 +93,12 @@ export async function addInstagramInsights(post: NormalizedPost, accessToken: st
   } catch (_) { /* insights are optional */ }
 }
 
+/** When the creator goes: the event's date, else the date they said they booked. */
+function visitTime(c: any): number | null {
+  const v = c.circuit?.event_at ?? c.checked_in_at;
+  return v ? new Date(v).getTime() : null;
+}
+
 export const isTagged = (caption: string) => TAG_RE.test(caption ?? '');
 
 /** Strip query strings so manual links match the platform's share URL. */
@@ -157,14 +166,13 @@ export async function importTaggedPosts(
       .filter((c: any) => !claimsWithPost.has(c.id) && c.circuit)
       .filter((c: any) => {
         const claimed = c.claimed_at ? new Date(c.claimed_at).getTime() : 0;
-        const event = c.circuit.event_at ? new Date(c.circuit.event_at).getTime() : claimed;
-        return postedMs >= claimed && postedMs <= event + POST_WINDOW_DAYS * DAY;
+        const visit = visitTime(c);
+        const until = visit != null ? visit + POST_WINDOW_DAYS * DAY : claimed + NO_DATE_WINDOW_DAYS * DAY;
+        return postedMs >= claimed && postedMs <= until;
       })
-      .sort((a: any, b: any) => {
-        const ea = Math.abs(postedMs - new Date(a.circuit.event_at ?? a.claimed_at).getTime());
-        const eb = Math.abs(postedMs - new Date(b.circuit.event_at ?? b.claimed_at).getTime());
-        return ea - eb;
-      });
+      .sort((a: any, b: any) =>
+        Math.abs(postedMs - (visitTime(a) ?? new Date(a.claimed_at).getTime())) -
+        Math.abs(postedMs - (visitTime(b) ?? new Date(b.claimed_at).getTime())));
     const claim = candidates[0];
     if (!claim) continue;
 
@@ -186,7 +194,7 @@ export async function importTaggedPosts(
     if (error || !inserted) continue;
 
     await db.from('post_stat_snapshots').insert({ post_id: inserted.id, ...stats });
-    const eventAt = claim.circuit.event_at ?? new Date().toISOString();
+    const eventAt = claim.circuit.event_at ?? claim.checked_in_at ?? new Date().toISOString();
     await db.from('redemptions').update({
       status: 'completed',
       checked_in_at: claim.checked_in_at ?? eventAt,

@@ -148,6 +148,10 @@ export default function CircuitDetailScreen() {
   const [detailsCopied, setDetailsCopied] = useState(false);
   const [requestedAt, setRequestedAt] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
+  // Date the creator booked for (events have no fixed date); anchors the 48h post window.
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [bookMonth, setBookMonth] = useState('');
+  const [bookDay, setBookDay] = useState('');
   const [creatorNiches, setCreatorNiches] = useState<string[]>([]);
   const [eligible, setEligible] = useState<boolean | null>(null);
   const [eligStatus, setEligStatus] = useState<'eligible' | 'soon' | 'no' | null>(null);
@@ -297,14 +301,27 @@ export default function CircuitDetailScreen() {
   }
 
 
+  /** The booked day at 9 PM local; rolls into next year if the date already passed by >1 week. */
+  function bookedDate(): Date | null {
+    const m = +bookMonth, d = +bookDay;
+    if (!m || !d || m > 12 || d > 31) return null;
+    const now = new Date();
+    let date = new Date(now.getFullYear(), m - 1, d, 21, 0);
+    if (date.getMonth() !== m - 1) return null;
+    if (date.getTime() < now.getTime() - 7 * 86_400_000) date = new Date(now.getFullYear() + 1, m - 1, d, 21, 0);
+    return date;
+  }
+
   async function handleBooked() {
     if (!redemptionId) return;
+    const visit = eventAt ?? bookedDate();
+    if (!visit) { Alert.alert('Pick a date', 'Enter the month and day you booked for.'); return; }
     setBooking(true);
     try {
       // The 48h posting window (app + server reminders) runs from checked_in_at,
-      // so anchor it to the event itself rather than when tickets were bought.
-      const now = (eventAt && eventAt > new Date() ? eventAt : new Date()).toISOString();
-      const bookedNote = (eventAt ?? new Date()).toLocaleDateString('en-US');
+      // so anchor it to the day they're going rather than when they bought tickets.
+      const now = visit.toISOString();
+      const bookedNote = visit.toLocaleDateString('en-US');
       // Mark as booked. Reuse checked_in_at/status so the post-submission step
       // unlocks. (booked_note stores the day; attempted separately so a missing
       // column doesn't block the core transition.)
@@ -318,6 +335,7 @@ export default function CircuitDetailScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setRedemptionStatus('checked_in');
       setCheckedInAt(now);
+      setShowBookModal(false);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -587,7 +605,7 @@ export default function CircuitDetailScreen() {
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>2</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Enter the code at checkout, then tap "I got my tickets" below.</Text>
+                <Text style={styles.stepText}>Book your date on their site with the code, then tap "I got my tickets" and tell us which day you're going.</Text>
               </View>
             </View>
 
@@ -714,7 +732,7 @@ export default function CircuitDetailScreen() {
         ) : isApproved ? (
           <TouchableOpacity
             style={[styles.button, booking && styles.buttonDisabled]}
-            onPress={handleBooked}
+            onPress={() => (eventAt ? handleBooked() : setShowBookModal(true))}
             disabled={booking}
           >
             <Text style={styles.buttonText}>I got my tickets</Text>
@@ -845,6 +863,35 @@ export default function CircuitDetailScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Which day did you book? */}
+      <Modal visible={showBookModal} transparent animationType="fade" onRequestClose={() => setShowBookModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => !booking && setShowBookModal(false)}>
+          <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
+            <Text style={styles.modalTitle}>What day are you going?</Text>
+            <Text style={styles.modalBody}>
+              We'll remind you to post, and your video is due within 48 hours of your visit.
+            </Text>
+            <View style={styles.bookRow}>
+              <TextInput style={styles.bookInput} value={bookMonth} placeholder="MM" placeholderTextColor={C.muted2}
+                keyboardType="number-pad" maxLength={2} onChangeText={t => setBookMonth(t.replace(/[^0-9]/g, ''))} />
+              <Text style={styles.bookSlash}>/</Text>
+              <TextInput style={styles.bookInput} value={bookDay} placeholder="DD" placeholderTextColor={C.muted2}
+                keyboardType="number-pad" maxLength={2} onChangeText={t => setBookDay(t.replace(/[^0-9]/g, ''))} />
+            </View>
+            <TouchableOpacity
+              style={[styles.button, (!bookedDate() || booking) && styles.buttonDisabled]}
+              onPress={handleBooked}
+              disabled={!bookedDate() || booking}
+            >
+              <Text style={styles.buttonText}>{booking ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowBookModal(false)}>
+              <Text style={styles.modalCancelText}>Not yet</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {redemptionId && (
         <ReportModal visible={showReport} redemptionId={redemptionId} onClose={() => setShowReport(false)} />
       )}
@@ -969,6 +1016,12 @@ const styles = StyleSheet.create({
   perkTitle: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 24, letterSpacing: -0.4, color: C.ink },
   perkSub: { fontFamily: F.body, fontSize: 14.5, color: C.inkSoft, lineHeight: 21, marginTop: 6 },
   perkSpots: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent, marginTop: 10 },
+  bookRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 18 },
+  bookInput: {
+    width: 72, textAlign: 'center', fontFamily: F.display, fontWeight: '700', fontSize: 22, color: C.ink,
+    borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, paddingVertical: 12, backgroundColor: C.card,
+  },
+  bookSlash: { fontFamily: F.display, fontSize: 22, color: C.muted2 },
   reqHeader: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.muted2, marginTop: 18, marginBottom: 10 },
   reqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   reqChip: {

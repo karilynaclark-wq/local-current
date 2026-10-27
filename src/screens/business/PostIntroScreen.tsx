@@ -5,7 +5,7 @@ import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 
 const STEPS: { num: number; title: string; desc: string }[] = [
-  { num: 1, title: 'Post your event', desc: 'Add the date, your ticket link, and how many creators get 2 free tickets.' },
+  { num: 1, title: 'Post your event', desc: 'Add your ticket link and how many creators get 2 free tickets.' },
   { num: 2, title: 'Add your ticket code', desc: 'One code for everyone, or a unique code per creator.' },
   { num: 3, title: 'Creators claim tickets', desc: "Eligible local creators claim instantly and use your code to get tickets. We'll notify you." },
   { num: 4, title: 'They attend and post', desc: 'Creators post to TikTok or Instagram within 48 hours, tagging you.' },
