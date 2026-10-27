@@ -30,7 +30,8 @@ const IG_LONG_TOKEN = 'https://graph.instagram.com/access_token';
 const IG_REFRESH = 'https://graph.instagram.com/refresh_access_token';
 const IG_GRAPH = 'https://graph.instagram.com';
 
-const SCOPES = 'instagram_business_basic';
+// manage_insights unlocks per-post views, reach, saves and shares (see _shared/postImport.ts).
+const SCOPES = 'instagram_business_basic,instagram_business_manage_insights';
 const USER_FIELDS =
   'user_id,username,name,account_type,profile_picture_url,biography,followers_count,follows_count,media_count';
 const MEDIA_FIELDS =
