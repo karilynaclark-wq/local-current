@@ -15,6 +15,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { syncCreatorFromVerified, clearCreatorVerified } from '../_shared/creatorSync.ts';
+import { importTaggedPosts, normalizeTikTok } from '../_shared/postImport.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -213,6 +214,9 @@ serve(async (req) => {
 
       await writeSnapshot(db, stateRow.profile_id, data);
       await syncCreatorFromVerified(db, stateRow.profile_id, 'tiktok', data.username, data.follower_count);
+      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      await importTaggedPosts(db, stateRow.profile_id, 'tiktok',
+        (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
       await db.from('oauth_states').delete().eq('state', state);
 
       return Response.redirect(`${APP_DEEP_LINK}?status=success`, 302);
@@ -276,6 +280,9 @@ serve(async (req) => {
         .eq('id', conn.id);
       await writeSnapshot(db, userId, data);
       await syncCreatorFromVerified(db, userId, 'tiktok', data.username, data.follower_count);
+      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      await importTaggedPosts(db, userId, 'tiktok',
+        (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
 
       return new Response(JSON.stringify({ success: true, ...data }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },

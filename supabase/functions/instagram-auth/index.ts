@@ -17,6 +17,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { syncCreatorFromVerified, clearCreatorVerified } from '../_shared/creatorSync.ts';
+import { importTaggedPosts, normalizeInstagram } from '../_shared/postImport.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -205,6 +206,9 @@ serve(async (req) => {
 
       await writeSnapshot(db, stateRow.profile_id, data);
       await syncCreatorFromVerified(db, stateRow.profile_id, 'instagram', data.username, data.follower_count);
+      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      await importTaggedPosts(db, stateRow.profile_id, 'instagram',
+        (data.recent_posts as any[]).map(normalizeInstagram).filter(Boolean) as any, accessToken);
       return Response.redirect(`${APP_DEEP_LINK}?status=success`, 302);
     }
 
@@ -246,6 +250,9 @@ serve(async (req) => {
           .eq('id', conn.id);
         await writeSnapshot(db, userId, data);
         await syncCreatorFromVerified(db, userId, 'instagram', data.username, data.follower_count);
+        // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+        await importTaggedPosts(db, userId, 'instagram',
+          (data.recent_posts as any[]).map(normalizeInstagram).filter(Boolean) as any, accessToken);
         return json({ success: true, ...data });
       } catch (_) {
         await db.from('social_connections').update({ needs_reconnect: true }).eq('id', conn.id);
