@@ -214,7 +214,7 @@ export default function CreatorProfileScreen() {
 
       setCompleted(doneRedemptions.map((r: any) => ({
         id: r.id,
-        title: r.circuit?.title ?? 'Circuit',
+        title: r.circuit?.title ?? 'Past event',
         business_name: r.circuit?.business?.business_name ?? '',
         posts: postsByRedemption[r.id] ?? [],
       })));
