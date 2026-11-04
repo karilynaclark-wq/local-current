@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { countFilled } from '../../types';
 import { C, F, R, S } from '../../theme';
+import BusinessHeader from '../../components/BusinessHeader';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 import { StatusChip } from '../../components/UI';
 
@@ -174,60 +175,7 @@ export default function BusinessProfileScreen() {
       </View>
 
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor={C.accent} />} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileCard}>
-          <View style={styles.profileRow}>
-            <TouchableOpacity style={styles.avatarCircle} onPress={pickAndUploadAvatar} activeOpacity={0.8}>
-              {business?.avatar_url ? (
-                <Image source={{ uri: business.avatar_url }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Icon name="storefront" size={32} color={C.muted2} />
-                </View>
-              )}
-              {uploadingAvatar && (
-                <View style={styles.avatarOverlay}>
-                  <ActivityIndicator color="#fff" />
-                </View>
-              )}
-              <View style={styles.avatarEditBadge}>
-                <Icon name="phone" size={11} color={C.card} />
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.profileInfo}>
-              <Text style={styles.name}>{business?.business_name ?? '—'}</Text>
-              {neighborhood && (
-                <View style={styles.locationRow}>
-                  <Icon name="pin" size={13} color={C.accent} />
-                  <Text style={styles.locationText}>{neighborhood}</Text>
-                </View>
-              )}
-              {business?.website && (
-                <TouchableOpacity onPress={() => Linking.openURL(business.website)}>
-                  <View style={styles.linkRow}>
-                    <Icon name="link" size={13} color={C.muted2} />
-                    <Text style={styles.websiteText} numberOfLines={1}>{business.website.replace(/^https?:\/\//, '')}</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.socialRow}>
-            {business?.instagram_handle ? (
-              <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.instagram.com/${business.instagram_handle.replace('@', '')}`)} activeOpacity={0.7}>
-                <SocialIcon kind="ig" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>@{business.instagram_handle.replace('@', '')}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {business?.tiktok_handle ? (
-              <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${business.tiktok_handle.replace('@', '')}`)} activeOpacity={0.7}>
-                <SocialIcon kind="tt" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>@{business.tiktok_handle.replace('@', '')}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
+        <BusinessHeader business={business} neighborhood={neighborhood} onAvatarPress={pickAndUploadAvatar} uploading={uploadingAvatar} />
 
         <View style={styles.tabBar}>
           <TouchableOpacity style={[styles.tab, activeTab === 'circuits' && styles.tabActive]} onPress={() => setActiveTab('circuits')}>
