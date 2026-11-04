@@ -439,9 +439,6 @@ export default function CircuitDetailScreen() {
         )}
 
         {/* ── Event hero: what, when, where ── */}
-        <Text style={styles.eyebrow}>
-          {circuit.business?.business_name}{neighborhood ? `  ·  ${neighborhood}` : ''}
-        </Text>
         <Text style={styles.title}>{circuit.title}</Text>
 
         {eventAt && (
@@ -465,18 +462,16 @@ export default function CircuitDetailScreen() {
         {(!hasClaimed || isClosedRequest) && (
           <>
             {/* The perk */}
-            <View style={styles.perkCard}>
-              <Text style={styles.perkEyebrow}>ON THE HOUSE</Text>
-              <Text style={styles.perkTitle}>
-                {(circuit.guest_count ?? 1) > 0 ? '2 free tickets' : '1 free ticket'}
-              </Text>
-              <Text style={styles.perkSub}>
-                {(circuit.guest_count ?? 1) > 0 ? 'For you and a friend. ' : ''}
-                All you do is go, enjoy it, and post an honest video{postOnLabel ? ` on ${postOnLabel}` : ''}.
-              </Text>
-              {circuit.max_redemptions != null && (
-                <Text style={styles.perkSpots}>Only {circuit.max_redemptions} creators get in</Text>
-              )}
+            <View style={styles.perkPill}>
+              <View style={styles.perkIcon}><Icon name="ticket" size={18} color="#fff" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.perkPillTitle}>
+                  {(circuit.guest_count ?? 1) > 0 ? '2 free tickets, on the house' : '1 free ticket, on the house'}
+                </Text>
+                <Text style={styles.perkPillSub}>
+                  {(circuit.guest_count ?? 1) > 0 ? 'Bring a friend, post an honest video after.' : 'Post an honest video after.'}
+                </Text>
+              </View>
             </View>
 
             {circuit.event_link ? (
@@ -489,43 +484,38 @@ export default function CircuitDetailScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {/* Who can go — secondary */}
-            <Text style={styles.reqHeader}>WHO CAN GO</Text>
-            {eligStatus !== null && (() => {
-              const tone = eligStatus === 'eligible' ? C.ok : eligStatus === 'soon' ? C.accent : C.muted;
-              const pillStyle = eligStatus === 'eligible' ? styles.eligPillOk : eligStatus === 'soon' ? styles.eligPillSoon : styles.eligPillNo;
-              const iconName = eligStatus === 'eligible' ? 'check' : eligStatus === 'soon' ? 'bell' : 'close';
-              const label = eligStatus === 'eligible'
-                ? `You're eligible${eligiblePlatformLabel ? ` for ${eligiblePlatformLabel}` : ''}!`
-                : eligStatus === 'soon'
-                ? 'Opening to your follower tier soon'
-                : 'Not eligible for this one';
-              return (
-                <TouchableOpacity
-                  style={[styles.eligPill, pillStyle]}
-                  onPress={() => setShowReqModal(true)}
-                  activeOpacity={0.8}
-                >
-                  <Icon name={iconName} size={15} color={tone} />
-                  <Text style={[styles.eligPillText, { color: tone }]}>{label}</Text>
-                  <Icon name="arrow" size={14} color={tone} />
-                </TouchableOpacity>
-              );
-            })()}
-            <View style={styles.reqRow}>
-              {effectiveMin != null && (
-                <View style={styles.reqChip}>
-                  <Icon name="trophy" size={13} color={C.muted} />
-                  <Text style={styles.reqChipText}>{minFollowersLabel(effectiveMin)} followers</Text>
-                </View>
-              )}
-              {postOnLabel ? (
-                <View style={styles.reqChip}>
-                  <Icon name="film" size={13} color={C.muted} />
-                  <Text style={styles.reqChipText}>Post on {postOnLabel}</Text>
-                </View>
-              ) : null}
-            </View>
+            {circuit.business_id ? (
+              <TouchableOpacity
+                style={styles.bizRow}
+                onPress={() => navigation.navigate('BusinessPublicProfile', { businessId: circuit.business_id })}
+                activeOpacity={0.7}
+              >
+                <Icon name="storefront" size={16} color={C.muted} />
+                <Text style={styles.bizRowLabel}>See the business</Text>
+                <Text style={styles.bizRowName} numberOfLines={1}>
+                  {circuit.business?.business_name}{neighborhood ? ` · ${neighborhood}` : ''}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Who can go: one quiet line; tap for the full requirements */}
+            <TouchableOpacity onPress={() => setShowReqModal(true)} activeOpacity={0.7} style={styles.reqLine}>
+              <Text style={styles.reqLineText}>
+                {eligStatus !== null && (
+                  <Text style={[
+                    styles.reqLineStatus,
+                    { color: eligStatus === 'eligible' ? C.ok : eligStatus === 'soon' ? C.accent : C.muted },
+                  ]}>
+                    {eligStatus === 'eligible' ? "YOU'RE ELIGIBLE" : eligStatus === 'soon' ? 'OPENING TO YOU SOON' : 'NOT ELIGIBLE'}
+                  </Text>
+                )}
+                {[
+                  effectiveMin != null ? `${minFollowersLabel(effectiveMin)} followers` : null,
+                  postOnLabel ? `Post on ${postOnLabel}` : null,
+                  circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
+                ].filter(Boolean).map(x => `  ·  ${x}`).join('')}
+              </Text>
+            </TouchableOpacity>
           </>
         )}
 
@@ -1022,6 +1012,19 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, paddingVertical: 12, backgroundColor: C.card,
   },
   bookSlash: { fontFamily: F.display, fontSize: 22, color: C.muted2 },
+  perkPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.accentTint,
+    borderRadius: R.pill, paddingVertical: 12, paddingLeft: 12, paddingRight: 18, marginBottom: 12,
+  },
+  perkIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
+  perkPillTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 16, color: C.ink },
+  perkPillSub: { fontFamily: F.body, fontSize: 13.5, color: C.inkSoft, marginTop: 1 },
+  bizRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 6 },
+  bizRowLabel: { fontFamily: F.bodySemi, fontSize: 14.5, color: C.inkSoft },
+  bizRowName: { flex: 1, fontFamily: F.body, fontSize: 14, color: C.muted2 },
+  reqLine: { paddingHorizontal: 2, paddingTop: 12 },
+  reqLineText: { fontFamily: F.body, fontSize: 12.5, color: C.muted, lineHeight: 18 },
+  reqLineStatus: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.1 },
   reqHeader: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.muted2, marginTop: 18, marginBottom: 10 },
   reqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   reqChip: {
