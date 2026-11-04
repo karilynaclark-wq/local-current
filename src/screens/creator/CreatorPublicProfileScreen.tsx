@@ -6,7 +6,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
-import CreatorInsights from '../../components/CreatorInsights';
+import CreatorInsights, { type FollowerCount } from '../../components/CreatorInsights';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
@@ -46,6 +46,7 @@ export default function CreatorPublicProfileScreen() {
 
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<any>(null);
+  const [followerCounts, setFollowerCounts] = useState<FollowerCount[]>([]);
   const [completed, setCompleted] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'circuits' | 'reviews'>('circuits');
@@ -62,6 +63,17 @@ export default function CreatorPublicProfileScreen() {
       .single();
 
     if (!cr) { setLoading(false); return; }
+
+    // Verified follower counts (social_connections is private; this RPC exposes counts only).
+    supabase.rpc('creator_follower_counts', { p_creator_id: creatorId }).then(({ data }) => {
+      const order = ['tiktok', 'instagram'];
+      setFollowerCounts(((data ?? []) as any[])
+        .sort((a, b) => order.indexOf(a.platform) - order.indexOf(b.platform))
+        .map(r => ({
+          platform: r.platform, count: r.follower_count ?? 0, verified: true,
+          url: r.platform === 'tiktok' ? `https://www.tiktok.com/@${r.username}` : `https://www.instagram.com/${r.username}`,
+        })));
+    });
 
     const { data: ratings } = await supabase
       .from('redemptions').select('business_rating').eq('creator_id', cr.id).not('business_rating', 'is', null);
@@ -177,12 +189,6 @@ export default function CreatorPublicProfileScreen() {
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.name}>{creator?.full_name ?? '—'}</Text>
-              {location && (
-                <View style={styles.locationRow}>
-                  <Icon name="pin" size={13} color={C.accent} />
-                  <Text style={styles.locationText}>{location}</Text>
-                </View>
-              )}
               {creator && creator.rating_count > 0 && (
                 <View style={styles.ratingRow}>
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -195,23 +201,10 @@ export default function CreatorPublicProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.socialRow}>
-            {creator?.tiktok_handle ? (
-              <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${creator.tiktok_handle.replace('@', '')}`)} activeOpacity={0.7}>
-                <SocialIcon kind="tt" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>{creator.tiktok_handle}{creator.tiktok_range ? `  ·  ${creator.tiktok_range}` : ''}</Text>
-                {creator.tiktok_verified && <VerifiedMark />}
-              </TouchableOpacity>
-            ) : null}
-            {creator?.instagram_handle ? (
-              <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.instagram.com/${creator.instagram_handle.replace('@', '')}`)} activeOpacity={0.7}>
-                <SocialIcon kind="ig" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>{creator.instagram_handle}{creator.instagram_range ? `  ·  ${creator.instagram_range}` : ''}</Text>
-                {creator.instagram_verified && <VerifiedMark />}
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <CreatorInsights summary={(creator as any)?.ai_summary} />
+          <CreatorInsights
+            counts={followerCounts}
+            summary={(creator as any)?.ai_summary}
+          />
         </View>
 
         <View style={styles.tabBar}>
@@ -367,16 +360,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
   topBar: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 0 },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  profileCard: {
-    backgroundColor: C.card, marginHorizontal: 16, marginTop: 8,
-    borderRadius: R.lg, padding: 20, borderWidth: 1, borderColor: C.line, ...(S.card as any),
-  },
-  profileRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, marginRight: 16, overflow: 'hidden', backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center' },
-  avatarImage: { width: 80, height: 80, borderRadius: 40 },
+  profileCard: { marginHorizontal: 16, marginTop: 4, paddingHorizontal: 4, paddingBottom: 8, alignItems: 'center' },
+  profileRow: { alignItems: 'center', marginBottom: 14 },
+  avatarCircle: { width: 96, height: 96, borderRadius: 48, marginBottom: 12, overflow: 'hidden', backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: 96, height: 96, borderRadius: 48 },
   avatarPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  profileInfo: { flex: 1 },
-  name: { fontFamily: F.display, fontWeight: '700', fontSize: 20, color: C.ink, marginBottom: 4 },
+  profileInfo: { alignItems: 'center' },
+  name: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 28, letterSpacing: -0.5, color: C.ink, textAlign: 'center' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
   locationText: { fontFamily: F.bodyMedium, fontSize: 13, color: C.muted },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },

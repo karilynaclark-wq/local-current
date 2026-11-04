@@ -90,6 +90,9 @@ export default function CreatorProfileScreen() {
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [selectedCircuit, setSelectedCircuit] = useState<CompletedCircuit | null>(null);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
+  const [showAccounts, setShowAccounts] = useState(false);
+  // Show the account rows if nothing is verified yet or a connection expired.
+  const needsAccountAttention = !connections.some(c => c.connection_type === 'oauth') || connections.some(c => c.needs_reconnect);
   const [connecting, setConnecting] = useState<Platform | null>(null);
   const [manualFor, setManualFor] = useState<Platform | null>(null);
 
@@ -310,12 +313,6 @@ export default function CreatorProfileScreen() {
             </TouchableOpacity>
             <View style={styles.profileInfo}>
               <Text style={styles.name}>{creator?.full_name ?? '—'}</Text>
-              {location && (
-                <View style={styles.locationRow}>
-                  <Icon name="pin" size={13} color={C.accent} />
-                  <Text style={styles.locationText}>{location}</Text>
-                </View>
-              )}
               {creator && creator.rating_count > 0 && (
                 <View style={styles.ratingRow}>
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -328,28 +325,21 @@ export default function CreatorProfileScreen() {
             </View>
           </View>
 
-          {/* Social pills */}
-          <View style={styles.socialRow}>
-            {creator?.tiktok_handle && !isVerified('tiktok') ? (
-              <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${creator.tiktok_handle.replace('@', '')}`)} activeOpacity={0.7}>
-                <SocialIcon kind="tt" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>
-                  {creator.tiktok_handle}{creator.tiktok_range ? `  ·  ${creator.tiktok_range}` : ''}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            {creator?.instagram_handle && !isVerified('instagram') ? (
-              <TouchableOpacity style={styles.socialPill} onPress={() => Linking.openURL(`https://www.instagram.com/${creator.instagram_handle.replace('@', '')}`)} activeOpacity={0.7}>
-                <SocialIcon kind="ig" size={16} color={C.ink} />
-                <Text style={styles.socialPillText}>
-                  {creator.instagram_handle}{creator.instagram_range ? `  ·  ${creator.instagram_range}` : ''}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
+          <CreatorInsights
+            isOwn
+            counts={connections
+              .filter(c => c.connection_type === 'oauth')
+              .sort((a, b) => (a.platform === 'tiktok' ? -1 : 1) - (b.platform === 'tiktok' ? -1 : 1))
+              .map(c => ({ platform: c.platform as any, count: c.follower_count, verified: true, url: c.profile_url }))}
+            summary={(creator as any)?.ai_summary}
+          />
 
-          {/* Connected accounts */}
-          <View style={styles.connectSection}>
+          <TouchableOpacity onPress={() => setShowAccounts(v => !v)} style={styles.manageLink} activeOpacity={0.7}>
+            <Text style={styles.manageLinkText}>{showAccounts ? 'Hide connected accounts' : 'Manage connected accounts'}</Text>
+          </TouchableOpacity>
+
+          {/* Connected accounts (collapsed unless something needs attention) */}
+          {(showAccounts || needsAccountAttention) && <View style={styles.connectSection}>
             <Text style={styles.connectHeader}>Connected accounts</Text>
             {(['tiktok', 'instagram'] as Platform[]).map(platform => {
               const conn = connections.find(c => c.platform === platform);
@@ -371,8 +361,7 @@ export default function CreatorProfileScreen() {
                 />
               );
             })}
-          </View>
-          <CreatorInsights summary={(creator as any)?.ai_summary} />
+          </View>}
           <ManualEntrySheet
             platform={manualFor ?? 'instagram'}
             visible={!!manualFor}
@@ -542,17 +531,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
   topBar: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 0 },
   settingsBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  profileCard: {
-    backgroundColor: C.card, marginHorizontal: 16, marginTop: 8,
-    borderRadius: R.lg, padding: 20, borderWidth: 1, borderColor: C.line, ...(S.card as any),
-  },
-  profileRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, marginRight: 16, overflow: 'visible' },
+  profileCard: { marginHorizontal: 16, marginTop: 4, paddingHorizontal: 4, paddingBottom: 8, alignItems: 'center' },
+  profileRow: { alignItems: 'center', marginBottom: 14 },
+  avatarCircle: { width: 96, height: 96, borderRadius: 48, marginBottom: 12, overflow: 'visible' },
   avatarPlaceholder: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  avatarImage: { width: 80, height: 80, borderRadius: 40 },
+  avatarImage: { width: 96, height: 96, borderRadius: 48 },
   avatarOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', borderRadius: 40,
@@ -563,13 +549,15 @@ const styles = StyleSheet.create({
     backgroundColor: C.muted2, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: C.card,
   },
-  profileInfo: { flex: 1 },
-  name: { fontFamily: F.display, fontWeight: '700', fontSize: 20, color: C.ink, marginBottom: 4 },
+  profileInfo: { alignItems: 'center' },
+  name: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 28, letterSpacing: -0.5, color: C.ink, textAlign: 'center' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
   locationText: { fontFamily: F.bodyMedium, fontSize: 13, color: C.muted },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   ratingNum: { fontFamily: F.bodyBold, fontSize: 13, color: C.ink },
   ratingCount: { fontFamily: F.body, fontSize: 12, color: C.muted2 },
+  manageLink: { alignSelf: 'center', paddingVertical: 10, marginTop: 4 },
+  manageLinkText: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent },
   socialRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   socialPill: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
