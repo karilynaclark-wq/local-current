@@ -231,7 +231,7 @@ export default function CreatorPublicProfileScreen() {
                 {completed.map((item, idx) => {
                   const cardColors = [C.okSoft, C.accentTint, C.claimedBg, C.line];
                   return (
-                    <TouchableOpacity key={item.id} style={[styles.gridCard, { backgroundColor: cardColors[idx % cardColors.length], borderColor: 'transparent' }]} onPress={() => setSelectedCircuit(item)} activeOpacity={0.8}>
+                    <TouchableOpacity key={item.id} style={styles.gridCard} onPress={() => setSelectedCircuit(item)} activeOpacity={0.8}>
                       <Text style={styles.gridBiz} numberOfLines={1}>{item.business_name.toUpperCase()}</Text>
                       <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
                       <View style={styles.postLinks}>

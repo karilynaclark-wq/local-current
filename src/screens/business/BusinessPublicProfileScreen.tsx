@@ -218,7 +218,7 @@ export default function BusinessPublicProfileScreen() {
                   const status = item.is_active ? 'active' : isCompleted ? 'completed' : 'inactive';
                   const cardBg = status === 'active' ? C.okSoft : status === 'completed' ? C.claimedBg : C.accentTint;
                   return (
-                    <View key={item.id} style={[styles.gridCard, { backgroundColor: cardBg, borderColor: 'transparent' }]}>
+                    <View key={item.id} style={styles.gridCard}>
                       <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
                       <StatusChip status={status as any} />
                     </View>

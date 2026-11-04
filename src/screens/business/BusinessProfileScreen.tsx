@@ -256,7 +256,7 @@ export default function BusinessProfileScreen() {
                   const status = item.is_active ? 'active' : isCompleted ? 'completed' : 'inactive';
                   const cardBg = status === 'active' ? C.okSoft : status === 'completed' ? C.claimedBg : C.accentTint;
                   return (
-                    <TouchableOpacity key={item.id} style={[styles.gridCard, { backgroundColor: cardBg, borderColor: 'transparent' }]} onPress={() => navigation.navigate('BusinessCircuitDetail', { circuit: item })} activeOpacity={0.8}>
+                    <TouchableOpacity key={item.id} style={styles.gridCard} onPress={() => navigation.navigate('BusinessCircuitDetail', { circuit: item })} activeOpacity={0.8}>
                       <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
                       <StatusChip status={status as any} />
                     </TouchableOpacity>
