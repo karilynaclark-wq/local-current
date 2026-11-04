@@ -466,7 +466,7 @@ export default function CircuitDetailScreen() {
               <View style={styles.perkIcon}><Icon name="ticket" size={18} color="#fff" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.perkPillTitle}>
-                  {(circuit.guest_count ?? 1) > 0 ? '2 free tickets, on the house' : '1 free ticket, on the house'}
+                  {(circuit.guest_count ?? 1) > 0 ? '2 free tickets' : '1 free ticket'}
                 </Text>
                 <Text style={styles.perkPillSub}>
                   {(circuit.guest_count ?? 1) > 0 ? 'Bring a friend, post an honest video after.' : 'Post an honest video after.'}
