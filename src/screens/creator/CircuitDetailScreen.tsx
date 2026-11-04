@@ -619,9 +619,18 @@ export default function CircuitDetailScreen() {
         {hasClaimed && redemptionStatus === 'checked_in' && (
           <View style={[styles.stateBox, styles.stateBoxComplete]}>
             <Text style={[styles.stateTitle, { color: C.ok }]}>Have fun!</Text>
-            <Text style={styles.stepText}>
-              Enjoy the event, then post your video within 48 hours with #localcurrentapp in the caption.
-            </Text>
+            <View style={styles.bookedRow}>
+              <Icon name="ticket" size={18} color={C.ok} />
+              <Text style={[styles.stepText, { flex: 1 }]}>
+                Tickets were redeemed on the event's ticketing site. For ticket and event details, check the email you used to redeem them.
+              </Text>
+            </View>
+            <View style={styles.bookedRow}>
+              <Icon name="film" size={18} color={C.ok} />
+              <Text style={[styles.stepText, { flex: 1 }]}>
+                After the event, post your video within 48 hours. Make sure to use <Text style={{ fontFamily: F.bodySemi }}>#localcurrentapp</Text>; if you don't, it won't get recorded and sent to the business!
+              </Text>
+            </View>
           </View>
         )}
 
@@ -1025,6 +1034,7 @@ const styles = StyleSheet.create({
   reqLine: { paddingHorizontal: 2, paddingTop: 12 },
   reqLineText: { fontFamily: F.body, fontSize: 12.5, color: C.muted, lineHeight: 18 },
   reqLineStatus: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.1 },
+  bookedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 },
   reqHeader: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.muted2, marginTop: 18, marginBottom: 10 },
   reqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   reqChip: {
