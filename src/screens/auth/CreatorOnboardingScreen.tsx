@@ -3,7 +3,6 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, ScrollView, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import AtInput from '../../components/AtInput';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
@@ -28,11 +27,6 @@ function rangeFromCount(n: number): string {
   return '100K+';
 }
 
-const PLATFORMS = ['Instagram', 'TikTok'] as const;
-type SocialPlatform = typeof PLATFORMS[number];
-
-const FOLLOWER_RANGES = ['Under 1K', '1K–5K', '5K–10K', '10K–50K', '50K–100K', '100K+'];
-
 const CHICAGO_ZIPS = [
   '60601','60602','60603','60604','60605','60606','60607','60608','60609','60610',
   '60611','60612','60613','60614','60615','60616','60617','60618','60619','60620',
@@ -45,13 +39,6 @@ const CHICAGO_ZIPS = [
 export default function CreatorOnboardingScreen() {
   const navigation = useNavigation<any>();
 
-  const [mainPlatform, setMainPlatform] = useState<SocialPlatform | null>(null);
-  const [handle, setHandle] = useState('');
-  const [followerRange, setFollowerRange] = useState('');
-  const [hasSecondary, setHasSecondary] = useState(false);
-  const [secondaryPlatform, setSecondaryPlatform] = useState<SocialPlatform | null>(null);
-  const [secondaryHandle, setSecondaryHandle] = useState('');
-  const [secondaryFollowers, setSecondaryFollowers] = useState('');
   const [city] = useState('Chicago');
   const [zipCode, setZipCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -67,24 +54,10 @@ export default function CreatorOnboardingScreen() {
         const conn = (await getConnections()).find(c => c.platform === api);
         if (!conn) return;
         setVerified(v => ({ ...v, [api]: conn }));
-        // Auto-fill the form: first verified account becomes the main
-        // platform, a second one fills the secondary slot.
-        const h = conn.username?.replace(/^@/, '') ?? '';
-        const range = rangeFromCount(conn.follower_count);
-        if (!mainPlatform || mainPlatform === label) {
-          setMainPlatform(label);
-          if (h) setHandle(h);
-          setFollowerRange(range);
-        } else {
-          setHasSecondary(true);
-          setSecondaryPlatform(label);
-          if (h) setSecondaryHandle(h);
-          setSecondaryFollowers(range);
-        }
       } else if (result === 'account_type') {
-        Alert.alert('Personal account', 'Instagram only lets Business or Creator accounts connect. Just fill in your handle and follower range below instead.');
+        Alert.alert('Personal account', "Instagram only lets Business or Creator accounts connect. You can switch to one for free in Instagram's settings, or connect TikTok instead.");
       } else if (result === 'not_configured') {
-        Alert.alert('Coming soon', `${label} connection isn't available yet — fill in your details below.`);
+        Alert.alert('Coming soon', `${label} connection isn't available yet. Try the other platform.`);
       } else if (result === 'error') {
         Alert.alert('Could not connect', `${label} connection failed. Please try again.`);
       }
@@ -96,8 +69,18 @@ export default function CreatorOnboardingScreen() {
   }
 
   async function handleSubmit() {
-    if (!mainPlatform || !handle || !followerRange || !zipCode) {
-      Alert.alert('Required', 'Please fill in all required fields including your zip code.');
+    const tt = verified.tiktok, ig = verified.instagram;
+    if (!tt && !ig) {
+      Alert.alert('Connect an account', 'Connect your TikTok or Instagram to continue.');
+      return;
+    }
+    const zip = zipCode.trim();
+    if (!zip) {
+      Alert.alert('Zip code', 'Enter your zip code.');
+      return;
+    }
+    if (!CHICAGO_ZIPS.includes(zip)) {
+      Alert.alert('Sorry!', 'Local Current is only open to Chicago creators right now.');
       return;
     }
     setLoading(true);
@@ -116,24 +99,28 @@ export default function CreatorOnboardingScreen() {
         if (profileError) throw profileError;
       }
 
+      // Verified accounts fill the profile. The larger one is the main platform.
+      const main = !tt ? ig! : !ig ? tt : (tt.follower_count >= ig.follower_count ? tt : ig);
+      const second = main === tt ? ig : tt;
+      const clean = (c?: SocialConnection) => c?.username?.replace(/^@/, '') ?? null;
       const { error } = await supabase.from('creators').insert({
         profile_id: user.id,
-        main_platform: mainPlatform.toLowerCase(),
-        instagram_handle: mainPlatform === 'Instagram' ? handle : (secondaryPlatform === 'Instagram' ? secondaryHandle : null),
-        tiktok_handle: mainPlatform === 'TikTok' ? handle : (secondaryPlatform === 'TikTok' ? secondaryHandle : null),
-        follower_range: followerRange,
-        secondary_platform: secondaryPlatform?.toLowerCase() ?? null,
-        secondary_follower_range: secondaryFollowers || null,
+        main_platform: main.platform,
+        follower_range: rangeFromCount(main.follower_count),
+        secondary_platform: second?.platform ?? null,
+        secondary_follower_range: second ? rangeFromCount(second.follower_count) : null,
+        tiktok_handle: clean(tt),
+        instagram_handle: clean(ig),
+        tiktok_verified: !!tt,
+        instagram_verified: !!ig,
         city,
-        zip_code: zipCode.trim(),
-        outside_chicago: !CHICAGO_ZIPS.includes(zipCode.trim()),
-        status: 'pending',
+        zip_code: zip,          // private: only used to confirm they're in Chicago
+        outside_chicago: false,
+        status: 'approved',     // verified account + Chicago zip → approved automatically
       });
       if (error) throw error;
-      // Creating the creator row sets status = 'pending'. Refreshing the session
-      // re-runs RootNavigator's status check, which swaps to CreatorTabs (pending)
-      // automatically — no manual navigation needed (and 'CreatorPending' isn't in
-      // this navigator, which is what caused the REPLACE error).
+      // Refreshing the session re-runs RootNavigator's status check, which swaps
+      // to the creator tabs automatically.
       await supabase.auth.refreshSession();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -142,14 +129,12 @@ export default function CreatorOnboardingScreen() {
     }
   }
 
-  const secondaryOptions = PLATFORMS.filter(p => p !== mainPlatform);
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Tell us about yourself</Text>
-          <Text style={styles.subtitle}>Help us match you with the right currents</Text>
+          <Text style={styles.subtitle}>Connect at least one account to continue.</Text>
 
           {/* Verify with TikTok / Instagram */}
           <View style={{ gap: 10 }}>
@@ -182,9 +167,7 @@ export default function CreatorOnboardingScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.connectCardTitle}>Connect {label}</Text>
                         <Text style={styles.connectCardSub}>
-                          {api === 'instagram'
-                            ? 'Business or Creator accounts — auto-fills your stats'
-                            : 'Verify your account to auto-fill your stats — recommended'}
+                          {api === 'instagram' ? 'Business or Creator accounts' : 'Verify your account and followers'}
                         </Text>
                       </View>
                       <Icon name="arrow" size={16} color={C.accent} />
@@ -195,76 +178,8 @@ export default function CreatorOnboardingScreen() {
             })}
           </View>
 
-          <Text style={styles.label}>Main platform *</Text>
-          <View style={styles.chipRow}>
-            {PLATFORMS.map(p => (
-              <TouchableOpacity
-                key={p}
-                style={[styles.chip, mainPlatform === p && styles.chipSelected]}
-                onPress={() => { setMainPlatform(p); setSecondaryPlatform(null); }}
-              >
-                <Text style={[styles.chipText, mainPlatform === p && styles.chipTextSelected]}>{p}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>Handle *</Text>
-          <AtInput value={handle} onChangeText={setHandle} />
-
-          <Text style={styles.label}>Follower range *</Text>
-          <View style={styles.chipRow}>
-            {FOLLOWER_RANGES.map(r => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.chip, followerRange === r && styles.chipSelected]}
-                onPress={() => setFollowerRange(r)}
-              >
-                <Text style={[styles.chipText, followerRange === r && styles.chipTextSelected]}>{r}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TouchableOpacity style={styles.secondaryToggle} onPress={() => setHasSecondary(!hasSecondary)}>
-            <Text style={styles.secondaryToggleText}>
-              {hasSecondary ? '− Remove secondary platform' : '+ Add secondary platform (optional)'}
-            </Text>
-          </TouchableOpacity>
-
-          {hasSecondary && (
-            <>
-              <Text style={styles.label}>Secondary platform</Text>
-              <View style={styles.chipRow}>
-                {secondaryOptions.map(p => (
-                  <TouchableOpacity
-                    key={p}
-                    style={[styles.chip, secondaryPlatform === p && styles.chipSelected]}
-                    onPress={() => setSecondaryPlatform(p)}
-                  >
-                    <Text style={[styles.chipText, secondaryPlatform === p && styles.chipTextSelected]}>{p}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.label}>Secondary handle</Text>
-              <AtInput value={secondaryHandle} onChangeText={setSecondaryHandle} />
-
-              <Text style={styles.label}>Secondary follower range</Text>
-              <View style={styles.chipRow}>
-                {FOLLOWER_RANGES.map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[styles.chip, secondaryFollowers === r && styles.chipSelected]}
-                    onPress={() => setSecondaryFollowers(r)}
-                  >
-                    <Text style={[styles.chipText, secondaryFollowers === r && styles.chipTextSelected]}>{r}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
-
           <Text style={styles.label}>Zip code *</Text>
-          <Text style={styles.hint}>Must be a Chicago zip code — that's the only city available right now</Text>
+          <Text style={styles.hint}>Only used to confirm you're in Chicago. Never shown to anyone.</Text>
           <TextInput
             style={styles.input}
             value={zipCode}
@@ -280,7 +195,7 @@ export default function CreatorOnboardingScreen() {
             onPress={handleSubmit}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{loading ? 'Submitting…' : 'Submit for approval'}</Text>
+            <Text style={styles.buttonText}>{loading ? 'Setting up…' : 'Continue'}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
