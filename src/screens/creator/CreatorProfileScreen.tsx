@@ -7,6 +7,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
+import CreatorInsights from '../../components/CreatorInsights';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 import {
   getConnections, connectTikTok, syncTikTok, disconnectTikTok,
@@ -26,6 +27,7 @@ const PLATFORM_API: Record<Platform, {
 };
 
 interface CreatorData {
+  ai_summary?: any;
   full_name: string;
   city: string;
   zip_code: string;
@@ -174,6 +176,7 @@ export default function CreatorProfileScreen() {
         : 0;
 
       setCreator({
+        ai_summary: cr.ai_summary ?? null,
         full_name: prof?.full_name ?? user.email?.split('@')[0] ?? 'Creator',
         city: cr.city ?? '',
         zip_code: cr.zip_code ?? '',
@@ -379,6 +382,8 @@ export default function CreatorProfileScreen() {
         </View>
 
         {/* Tabs */}
+        <CreatorInsights summary={(creator as any)?.ai_summary} />
+
         <View style={styles.tabBar}>
           <TouchableOpacity style={[styles.tab, activeTab === 'circuits' && styles.tabActive]} onPress={() => setActiveTab('circuits')}>
             <Mark size={14} color={activeTab === 'circuits' ? '#fff' : C.muted2} />

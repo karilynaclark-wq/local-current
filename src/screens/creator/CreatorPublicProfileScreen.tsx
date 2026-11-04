@@ -6,6 +6,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
+import CreatorInsights from '../../components/CreatorInsights';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
@@ -93,6 +94,7 @@ export default function CreatorPublicProfileScreen() {
     const done = redemptions ?? [];
 
     setCreator({
+      ai_summary: cr.ai_summary ?? null,
       full_name: cr.profiles?.full_name ?? 'Creator',
       avatar_url: cr.profiles?.avatar_url ?? null,
       instagram_handle: cr.instagram_handle ?? '',
@@ -210,6 +212,8 @@ export default function CreatorPublicProfileScreen() {
             ) : null}
           </View>
         </View>
+
+        <CreatorInsights summary={(creator as any)?.ai_summary} />
 
         <View style={styles.tabBar}>
           <TouchableOpacity style={[styles.tab, activeTab === 'circuits' && styles.tabActive]} onPress={() => setActiveTab('circuits')}>

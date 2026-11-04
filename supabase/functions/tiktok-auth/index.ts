@@ -15,6 +15,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { syncCreatorFromVerified, clearCreatorVerified } from '../_shared/creatorSync.ts';
+import { refreshCreatorSummary } from '../_shared/refreshSummary.ts';
 import { importTaggedPosts, normalizeTikTok } from '../_shared/postImport.ts';
 
 const CORS = {
@@ -217,6 +218,7 @@ serve(async (req) => {
       // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, stateRow.profile_id, 'tiktok',
         (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
+      refreshCreatorSummary(stateRow.profile_id);
       await db.from('oauth_states').delete().eq('state', state);
 
       return Response.redirect(`${APP_DEEP_LINK}?status=success`, 302);
@@ -283,6 +285,7 @@ serve(async (req) => {
       // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, userId, 'tiktok',
         (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
+      refreshCreatorSummary(userId);
 
       return new Response(JSON.stringify({ success: true, ...data }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },

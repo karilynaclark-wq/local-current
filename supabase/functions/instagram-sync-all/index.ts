@@ -9,6 +9,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
+import { refreshCreatorSummary } from '../_shared/refreshSummary.ts';
 import { importTaggedPosts, normalizeInstagram } from '../_shared/postImport.ts';
 import { saveInstagramAudience } from '../_shared/igAudience.ts';
 
@@ -102,6 +103,7 @@ serve(async (req) => {
       // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, conn.profile_id, 'instagram',
         (data.recent_posts as any[]).map(normalizeInstagram).filter(Boolean) as any, accessToken);
+      refreshCreatorSummary(conn.profile_id);
       await saveInstagramAudience(db, conn.profile_id, accessToken);
       synced++;
     } catch (err) {

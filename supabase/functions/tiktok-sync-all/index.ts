@@ -10,6 +10,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { syncCreatorFromVerified } from '../_shared/creatorSync.ts';
+import { refreshCreatorSummary } from '../_shared/refreshSummary.ts';
 import { importTaggedPosts, normalizeTikTok } from '../_shared/postImport.ts';
 
 const TT_TOKEN = 'https://open.tiktokapis.com/v2/oauth/token/';
@@ -127,6 +128,7 @@ serve(async (req) => {
       // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, conn.profile_id, 'tiktok',
         (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
+      refreshCreatorSummary(conn.profile_id);
       synced++;
     } catch (err) {
       console.error(`sync failed for connection ${conn.id}:`, (err as Error).message);

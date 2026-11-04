@@ -5,7 +5,7 @@
 //
 // Body: { creatorId: string, dryRun?: boolean, promptOverride?: string }
 //   (cron-secret callers may also send { postsText } to test on pasted captions)
-//   (cron-secret callers may pass { email } instead of creatorId)
+//   (cron-secret callers may pass { email } or { profileId } instead of creatorId)
 //  - dryRun: return the input + summary without saving (for prompt testing)
 //  - promptOverride: replace the instructions (testing only; cron-secret callers)
 // Auth: the creator themself, an admin, or the CRON_SECRET header (testing / batch).
@@ -116,7 +116,7 @@ serve(async (req) => {
 
   try {
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { creatorId: bodyCreatorId, email, dryRun = false, promptOverride, postsText } = await req.json();
+    const { creatorId: bodyCreatorId, email, profileId, dryRun = false, promptOverride, postsText } = await req.json();
     const cronSecret = Deno.env.get('CRON_SECRET');
     const trusted = !!cronSecret && req.headers.get('x-cron-secret') === cronSecret;
 
@@ -132,6 +132,11 @@ serve(async (req) => {
       const { data: p } = await db.from('profiles').select('id').eq('email', email).single();
       const { data: c } = p ? await db.from('creators').select('id').eq('profile_id', p.id).single() : { data: null };
       creatorId = c?.id;
+    }
+    if (!creatorId && trusted && profileId) {
+      const { data: c } = await db.from('creators').select('id').eq('profile_id', profileId).maybeSingle();
+      if (!c) return json({ skipped: 'not a creator' });
+      creatorId = c.id;
     }
     if (!creatorId) return json({ error: 'creatorId required' }, 400);
 
