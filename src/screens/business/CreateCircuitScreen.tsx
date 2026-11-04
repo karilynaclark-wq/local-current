@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.paper, borderWidth: 1, borderColor: C.line,
   },
   stepperBtnText: { fontFamily: F.body, fontSize: 17, color: C.ink },
-  summary: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: -14, marginBottom: 4 },
+  summary: { fontFamily: F.body, fontSize: 12.5, color: C.muted, marginTop: 8, marginBottom: 4 },
   input: {
     fontFamily: F.body, borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md,
     padding: 13, fontSize: 15, color: C.ink, backgroundColor: C.card,
