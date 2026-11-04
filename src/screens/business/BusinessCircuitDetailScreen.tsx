@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   SafeAreaView, Alert, RefreshControl, Linking, Modal,
-  TextInput, ScrollView, KeyboardAvoidingView, Platform,
+  TextInput, ScrollView, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { Circuit, Post, FILLED_STATUSES } from '../../types';
 import { minFollowersLabel } from '../../lib/eligibility';
-import ClaimsSection, { type ClaimRow } from '../../components/ClaimsSection';
 import { C, F, R, S } from '../../theme';
+import PostStats, { hasPostStats } from '../../components/PostStats';
 import { Icon, SocialIcon } from '../../components/Icon';
 
 // ─── Rating modal ─────────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ export default function BusinessCircuitDetailScreen() {
   const [posts, setPosts] = useState<(Post & { creatorName?: string; creatorHandle?: string })[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionWithRating[]>([]);
   const [codes, setCodes] = useState<{ code: string; redemption_id: string | null }[]>([]);
-  const [stats, setStats] = useState({ claims: 0, checkins: 0, posts: 0, views: 0, likes: 0, comments: 0 });
+  const [stats, setStats] = useState({ claims: 0, checkins: 0, posts: 0, views: 0, likes: 0, comments: 0, engagements: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -296,10 +296,10 @@ export default function BusinessCircuitDetailScreen() {
     // Fetch posts and creators separately to avoid RLS blocking nested joins
     const [postsRes, creatorsRes] = await Promise.all([
       redemptionIds.length > 0
-        ? supabase.from('posts').select('id, redemption_id, creator_id, video_url, platform, views, likes, comments, submitted_at').in('redemption_id', redemptionIds)
+        ? supabase.from('posts').select('*').in('redemption_id', redemptionIds)
         : Promise.resolve({ data: [] as any[] }),
       creatorIds.length > 0
-        ? supabase.from('creators').select('*, profile:profiles(id, full_name)').in('id', creatorIds)
+        ? supabase.from('creators').select('*, profile:profiles(id, full_name, avatar_url)').in('id', creatorIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
@@ -349,6 +349,9 @@ export default function BusinessCircuitDetailScreen() {
       views: postList.reduce((s: number, p: any) => s + (p.views ?? 0), 0),
       likes: postList.reduce((s: number, p: any) => s + (p.likes ?? 0), 0),
       comments: postList.reduce((s: number, p: any) => s + (p.comments ?? 0), 0),
+      // likes + comments + shares (+ saves on Instagram), matching PostStats
+      engagements: postList.reduce((s: number, p: any) =>
+        s + (p.likes ?? 0) + (p.comments ?? 0) + (p.shares ?? 0) + (p.platform === 'instagram' ? (p.saves ?? 0) : 0), 0),
     });
     setRefreshing(false);
   }
@@ -394,6 +397,10 @@ export default function BusinessCircuitDetailScreen() {
     ? circuit.eligibility_min_followers.split(',').map(r => r.trim())
     : [];
 
+  const claimedCreators = redemptions
+    .filter((r: any) => FILLED_STATUSES.includes(r.status) && r.creator)
+    .map((r: any) => r.creator);
+
   const isExpired = circuit.expires_at ? new Date(circuit.expires_at) < new Date() : false;
 
   function renderPost({ item }: { item: Post }) {
@@ -402,7 +409,6 @@ export default function BusinessCircuitDetailScreen() {
     const redemptionId = postRedemptionMap[item.id];
     const existingRating = postRatingMap[item.id];
 
-    const hasStats = item.views != null || (item as any).likes != null || (item as any).comments != null;
     return (
       <View style={styles.postCard}>
         {(item as any).creatorName && (
@@ -420,21 +426,10 @@ export default function BusinessCircuitDetailScreen() {
             <Icon name="arrow" size={14} color={C.accent} />
           </View>
         </TouchableOpacity>
-        {hasStats ? (
-          <View style={styles.postStatsGrid}>
-            {[
-              { label: 'Views', val: item.views },
-              { label: 'Likes', val: (item as any).likes },
-              { label: 'Comments', val: (item as any).comments },
-            ].map(s => (
-              <View key={s.label} style={styles.postStatBox}>
-                <Text style={styles.postStatNum}>{(s.val ?? 0).toLocaleString()}</Text>
-                <Text style={styles.postStatLabel}>{s.label}</Text>
-              </View>
-            ))}
-          </View>
+        {hasPostStats(item as any) ? (
+          <PostStats post={item as any} />
         ) : (
-          <Text style={styles.statsPending}>Stats updated at 24h, 48h, and 7 days after posting.</Text>
+          <Text style={styles.statsPending}>Stats update daily after the post goes live.</Text>
         )}
         {/* Rating row */}
         {redemptionId && (
@@ -483,53 +478,6 @@ export default function BusinessCircuitDetailScreen() {
 
             <Text style={styles.circuitTitle}>{circuit.title}</Text>
             {!!circuit.description && <Text style={styles.circuitDesc}>{circuit.description}</Text>}
-
-            <ClaimsSection
-              circuit={circuit}
-              rows={redemptions as unknown as ClaimRow[]}
-              onOpenCreator={creatorId => navigation.navigate('CreatorPublicProfile', { creatorId })}
-            />
-
-            {/* Analytics only once creators have posted — nothing to show before. */}
-            {stats.posts > 0 && (<>
-            <View style={styles.statsRow}>
-              {[
-                {
-                  num: stats.claims, label: 'Claimed',
-                  onPress: () => setCreatorListModal({
-                    title: 'Claimed',
-                    creators: redemptions
-                      .filter((r: any) => FILLED_STATUSES.includes(r.status))
-                      .map((r: any) => r.creator).filter(Boolean),
-                  }),
-                },
-                {
-                  num: stats.posts, label: 'Posts',
-                  onPress: () => setCreatorListModal({
-                    title: 'Posts',
-                    creators: posts.map((p: any) => p.redemption?.creator).filter(Boolean),
-                  }),
-                },
-              ].map(s => (
-                <TouchableOpacity key={s.label} style={styles.statCard} onPress={s.onPress} activeOpacity={0.75}>
-                  <Text style={styles.statNum}>{s.num}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.statsRow}>
-              {[
-                { num: stats.views, label: 'Views' },
-                { num: stats.likes, label: 'Likes' },
-                { num: stats.comments, label: 'Comments' },
-              ].map(s => (
-                <View key={s.label} style={styles.statCard}>
-                  <Text style={styles.statNum}>{s.num.toLocaleString()}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-              ))}
-            </View>
-            </>)}
 
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionTitle}>Event details</Text>
@@ -601,7 +549,73 @@ export default function BusinessCircuitDetailScreen() {
               )}
             </View>
 
-            {posts.length > 0 && <Text style={styles.sectionTitle}>Creator posts</Text>}
+            {/* Results */}
+            <View style={styles.statsRow}>
+              {[
+                {
+                  num: stats.claims, label: 'Claimed',
+                  onPress: () => setCreatorListModal({
+                    title: 'Claimed',
+                    creators: redemptions
+                      .filter((r: any) => FILLED_STATUSES.includes(r.status))
+                      .map((r: any) => r.creator).filter(Boolean),
+                  }),
+                },
+                {
+                  num: stats.posts, label: 'Posts',
+                  onPress: () => setCreatorListModal({
+                    title: 'Posts',
+                    creators: posts.map((p: any) => p.redemption?.creator).filter(Boolean),
+                  }),
+                },
+              ].map(s => (
+                <TouchableOpacity key={s.label} style={styles.statCard} onPress={s.onPress} activeOpacity={0.75}>
+                  <Text style={styles.statNum}>{s.num}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {stats.posts > 0 && <View style={styles.statsRow}>
+              {[
+                { num: stats.views, label: 'Views' },
+                { num: stats.engagements, label: 'Engagements' },
+              ].map(s => (
+                <View key={s.label} style={styles.statCard}>
+                  <Text style={styles.statNum}>{s.num.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+              ))}
+            </View>}
+
+
+            {/* Creators who claimed */}
+            {claimedCreators.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Creators</Text>
+                <View style={styles.creatorList}>
+                  {claimedCreators.map((c: any) => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={styles.creatorRow}
+                      onPress={() => navigation.navigate('CreatorPublicProfile', { creatorId: c.id })}
+                      activeOpacity={0.7}
+                    >
+                      {c.profile?.avatar_url ? (
+                        <Image source={{ uri: c.profile.avatar_url }} style={styles.creatorAvatar} />
+                      ) : (
+                        <View style={[styles.creatorAvatar, styles.creatorAvatarEmpty]}>
+                          <Icon name="person" size={18} color={C.muted2} />
+                        </View>
+                      )}
+                      <Text style={styles.creatorRowName}>{c.profile?.full_name ?? 'Creator'}</Text>
+                      <Icon name="chevron-right" size={14} color={C.muted2} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {posts.length > 0 && <Text style={styles.sectionTitle}>Posts</Text>}
           </View>
         }
         contentContainerStyle={styles.list}
@@ -802,6 +816,11 @@ const styles = StyleSheet.create({
   voucherMetaLabel: { fontFamily: F.mono, fontSize: 10, color: C.muted2, letterSpacing: 1.2, textTransform: 'uppercase' },
   voucherMetaValue: { fontFamily: F.bodySemi, fontSize: 14, color: C.ink },
   voucherRefValue: { fontFamily: F.monoBold, fontSize: 15, color: C.ink, letterSpacing: 1.5 },
+  creatorList: { backgroundColor: C.card, borderRadius: R.lg, borderWidth: 1, borderColor: C.line, marginBottom: 20, overflow: 'hidden' },
+  creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line },
+  creatorAvatar: { width: 36, height: 36, borderRadius: 18 },
+  creatorAvatarEmpty: { backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center' },
+  creatorRowName: { flex: 1, fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
   postCard: {
     backgroundColor: C.card, borderRadius: R.lg, padding: 16, marginBottom: 10,
     borderWidth: 1, borderColor: C.line, ...(S.card as any),
