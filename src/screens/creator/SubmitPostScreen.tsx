@@ -119,7 +119,7 @@ export default function SubmitPostScreen() {
             {requiredPlatform
               ? `You must post to ${requiredPlatform === 'tiktok' ? 'TikTok' : 'Instagram'} for this current. The other platform is optional.`
               : 'Paste the link(s) to your post below. At least one is required.'}
-            {' '}Tip: with TikTok or Instagram connected, posts tagged #localcurrent are added automatically.
+            {' '}Tip: with TikTok or Instagram connected, posts tagged #localcurrentapp are added automatically.
           </Text>
 
           {/* TikTok */}

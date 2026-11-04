@@ -215,7 +215,7 @@ serve(async (req) => {
 
       await writeSnapshot(db, stateRow.profile_id, data);
       await syncCreatorFromVerified(db, stateRow.profile_id, 'tiktok', data.username, data.follower_count);
-      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      // Attach #localcurrentapp / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, stateRow.profile_id, 'tiktok',
         (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
       refreshCreatorSummary(stateRow.profile_id);
@@ -282,7 +282,7 @@ serve(async (req) => {
         .eq('id', conn.id);
       await writeSnapshot(db, userId, data);
       await syncCreatorFromVerified(db, userId, 'tiktok', data.username, data.follower_count);
-      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      // Attach #localcurrentapp / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, userId, 'tiktok',
         (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
       refreshCreatorSummary(userId);

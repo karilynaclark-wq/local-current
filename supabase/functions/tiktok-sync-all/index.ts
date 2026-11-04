@@ -125,7 +125,7 @@ serve(async (req) => {
         media_count: data.media_count,
       });
       await syncCreatorFromVerified(db, conn.profile_id, 'tiktok', data.username, data.follower_count);
-      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      // Attach #localcurrentapp / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, conn.profile_id, 'tiktok',
         (data.recent_posts as any[]).map(normalizeTikTok).filter(Boolean) as any);
       refreshCreatorSummary(conn.profile_id);

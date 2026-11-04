@@ -5,7 +5,7 @@
 // sync crons) with the account's recent posts:
 //  - A post already recorded (same video id, or a manually submitted link to
 //    the same video) gets its stats updated, tagged or not.
-//  - A new post whose caption has #localcurrent or @localcurrentapp is matched
+//  - A new post whose caption has #localcurrentapp or @localcurrentapp is matched
 //    to the creator's claim whose event it most likely covers, recorded as an
 //    'auto' post, and the claim is marked completed.
 // Every touched post gets a row in post_stat_snapshots.
@@ -13,7 +13,8 @@
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
-const TAG_RE = /(^|[^a-z0-9_])(#localcurrent|@localcurrentapp)(?![a-z0-9_])/i;
+// #localcurrentapp is the official tag; plain #localcurrent is still accepted for older posts.
+const TAG_RE = /(^|[^a-z0-9_])(#localcurrentapp|#localcurrent|@localcurrentapp)(?![a-z0-9_])/i;
 const DAY = 86_400_000;
 // A post counts for a claim if it goes up after the claim and within 7 days of
 // the visit (event date, or the day the creator said they booked). With

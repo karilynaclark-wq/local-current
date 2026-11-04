@@ -609,7 +609,7 @@ export default function CircuitDetailScreen() {
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>4</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Post your video within 48 hours and add #localcurrent to the caption. If your TikTok or Instagram is connected, we'll pick it up automatically.</Text>
+                <Text style={styles.stepText}>Post your video within 48 hours and add #localcurrentapp to the caption.</Text>
               </View>
             </View>
           </View>
@@ -618,9 +618,9 @@ export default function CircuitDetailScreen() {
         {/* ── State 2a: Booked (code current) — attend & post ── */}
         {hasClaimed && redemptionStatus === 'checked_in' && (
           <View style={[styles.stateBox, styles.stateBoxComplete]}>
-            <Text style={[styles.stateTitle, { color: C.ok }]}>You're booked! 🎟️</Text>
+            <Text style={[styles.stateTitle, { color: C.ok }]}>Have fun!</Text>
             <Text style={styles.stepText}>
-              Enjoy the event, then post your video within 48 hours with #localcurrent in the caption. Connected accounts are picked up automatically; otherwise submit the link below.
+              Enjoy the event, then post your video within 48 hours with #localcurrentapp in the caption.
             </Text>
           </View>
         )}

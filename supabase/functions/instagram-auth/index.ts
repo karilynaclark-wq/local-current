@@ -209,7 +209,7 @@ serve(async (req) => {
 
       await writeSnapshot(db, stateRow.profile_id, data);
       await syncCreatorFromVerified(db, stateRow.profile_id, 'instagram', data.username, data.follower_count);
-      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      // Attach #localcurrentapp / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, stateRow.profile_id, 'instagram',
         (data.recent_posts as any[]).map(normalizeInstagram).filter(Boolean) as any, accessToken);
       refreshCreatorSummary(stateRow.profile_id);
@@ -255,7 +255,7 @@ serve(async (req) => {
           .eq('id', conn.id);
         await writeSnapshot(db, userId, data);
         await syncCreatorFromVerified(db, userId, 'instagram', data.username, data.follower_count);
-        // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+        // Attach #localcurrentapp / @localcurrentapp posts to claims; refresh tracked posts' stats.
         await importTaggedPosts(db, userId, 'instagram',
           (data.recent_posts as any[]).map(normalizeInstagram).filter(Boolean) as any, accessToken);
         refreshCreatorSummary(userId);

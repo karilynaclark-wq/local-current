@@ -100,7 +100,7 @@ serve(async (req) => {
         media_count: data.media_count,
       });
       await syncCreatorFromVerified(db, conn.profile_id, 'instagram', data.username, data.follower_count);
-      // Attach #localcurrent / @localcurrentapp posts to claims; refresh tracked posts' stats.
+      // Attach #localcurrentapp / @localcurrentapp posts to claims; refresh tracked posts' stats.
       await importTaggedPosts(db, conn.profile_id, 'instagram',
         (data.recent_posts as any[]).map(normalizeInstagram).filter(Boolean) as any, accessToken);
       refreshCreatorSummary(conn.profile_id);
