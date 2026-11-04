@@ -187,7 +187,7 @@ export default function ProfileScreen() {
               </View>
             )}
             <View style={styles.avatarEditBadge}>
-              <Icon name="phone" size={12} color={C.card} />
+              <Icon name="plus" size={13} color={C.card} stroke={2.4} />
             </View>
           </TouchableOpacity>
 
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   avatarEditBadge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 26, height: 26, borderRadius: 13,
-    backgroundColor: C.muted2, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: C.card,
   },
 } as any);
