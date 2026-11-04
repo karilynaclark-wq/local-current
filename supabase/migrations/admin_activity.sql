@@ -5,7 +5,7 @@
 
 -- 1) Who is an admin (by login email)
 CREATE TABLE IF NOT EXISTS admins (email TEXT PRIMARY KEY);
-INSERT INTO admins (email) VALUES ('karilynaclark@gmail.com') ON CONFLICT DO NOTHING;
+INSERT INTO admins (email) VALUES ('hello@localcurrentapp.com') ON CONFLICT DO NOTHING;
 ALTER TABLE admins ENABLE ROW LEVEL SECURITY;  -- no policies: not readable from the app
 
 CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN

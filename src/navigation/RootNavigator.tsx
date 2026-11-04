@@ -44,7 +44,7 @@ import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
-const ADMIN_EMAILS = ['hello@join-circuit.com'];
+const ADMIN_EMAILS = ['hello@localcurrentapp.com', 'hello@join-circuit.com'];
 
 function AuthStack({ initialRoute }: { initialRoute?: string } = {}) {
   return (
