@@ -45,6 +45,11 @@ export function ConnectedAccountRow({ conn, busy, onDisconnect, onReconnect }: {
           {conn.follower_count.toLocaleString()} followers
           {conn.media_count ? `  ·  ${conn.media_count} posts` : ''}
         </Text>
+        {!!conn.audience?.illinois_share && (
+          <Text style={styles.stat}>
+            {Math.round(conn.audience.illinois_share * 100)}% of followers in the Chicago area
+          </Text>
+        )}
         {conn.needs_reconnect && onReconnect && (
           <TouchableOpacity onPress={onReconnect} activeOpacity={0.7}>
             <Text style={styles.reconnectText}>⚠ Connection expired — tap to reconnect</Text>

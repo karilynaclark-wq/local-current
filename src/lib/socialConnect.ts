@@ -22,6 +22,8 @@ export interface SocialConnection {
   likes_count: number;
   media_count: number;
   recent_posts: any[] | null;
+  /** Instagram follower location (needs the insights permission). */
+  audience?: { chicago_share: number; illinois_share: number; top_cities: { name: string; share: number }[] } | null;
   connection_type: 'oauth' | 'manual';
   needs_reconnect: boolean;
   last_synced_at: string | null;
@@ -30,7 +32,7 @@ export interface SocialConnection {
 
 // Columns safe to read on the client — never select the *_token columns.
 const SAFE_COLUMNS =
-  'platform,username,avatar_url,profile_url,bio,is_verified,profile_deep_link,follower_count,following_count,likes_count,media_count,recent_posts,connection_type,needs_reconnect,last_synced_at,connected_at';
+  'platform,username,avatar_url,profile_url,bio,is_verified,profile_deep_link,follower_count,following_count,likes_count,media_count,recent_posts,audience,connection_type,needs_reconnect,last_synced_at,connected_at';
 
 const FUNCTIONS_BASE = `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1`;
 
