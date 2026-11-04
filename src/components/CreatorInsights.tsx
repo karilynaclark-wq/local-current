@@ -65,12 +65,17 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
       {showLocal && (
         <View style={styles.local}>
           <Icon name="pin" size={13} color={C.muted} />
-          <Text style={styles.localText}>
-            {share! >= LOCAL_THRESHOLD && (
+          {share! >= LOCAL_THRESHOLD ? (
+            <Text style={styles.localText}>
               <Text style={styles.localLead}>{isOwn ? "You're local: " : "They're local: "}</Text>
-            )}
-            {pct}% of recent posts are about Chicago
-          </Text>
+              {pct}% of recent posts are about Chicago
+            </Text>
+          ) : (
+            <Text style={styles.localText}>
+              <Text style={styles.localLead}>{isOwn ? "Your posts aren't local: " : "Their posts aren't local: "}</Text>
+              {100 - pct}% of recent posts are not about Chicago
+            </Text>
+          )}
         </View>
       )}
     </View>
