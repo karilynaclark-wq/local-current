@@ -7,6 +7,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
+import PostStats, { hasPostStats } from '../../components/PostStats';
 import CreatorInsights from '../../components/CreatorInsights';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 import {
@@ -207,7 +208,7 @@ export default function CreatorProfileScreen() {
       if (redemptionIds.length > 0) {
         const { data: posts } = await supabase
           .from('posts')
-          .select('redemption_id, platform, video_url, views, likes, comments, submitted_at')
+          .select('*')
           .in('redemption_id', redemptionIds);
         for (const p of (posts ?? [])) {
           if (!postsByRedemption[p.redemption_id]) postsByRedemption[p.redemption_id] = [];
@@ -462,7 +463,7 @@ export default function CreatorProfileScreen() {
               </TouchableOpacity>
             </View>
             {selectedCircuit?.posts?.filter((p: any) => p.video_url).map((p: any, pi: number) => {
-              const hasStats = p.views != null || p.comments != null || p.saves != null || p.reposts != null;
+              const hasStats = hasPostStats(p);
               return (
                 <View key={pi} style={postModal.postBlock}>
                   <TouchableOpacity style={postModal.linkRow} onPress={() => Linking.openURL(p.video_url)} activeOpacity={0.75}>
@@ -471,19 +472,7 @@ export default function CreatorProfileScreen() {
                     <Icon name="arrow" size={13} color={C.accent} />
                   </TouchableOpacity>
                   {hasStats ? (
-                    <View style={postModal.statsGrid}>
-                      {[
-                        { label: 'Views', val: p.views },
-                        { label: 'Comments', val: p.comments },
-                        { label: 'Saves', val: p.saves },
-                        { label: 'Reposts', val: p.reposts },
-                      ].map(s => (
-                        <View key={s.label} style={postModal.statBox}>
-                          <Text style={postModal.statNum}>{(s.val ?? 0).toLocaleString()}</Text>
-                          <Text style={postModal.statLabel}>{s.label}</Text>
-                        </View>
-                      ))}
-                    </View>
+                    <PostStats post={p} />
                   ) : (
                     <Text style={postModal.pendingStats}>Stats will be added at 24h, 48h, and 7 days after posting.</Text>
                   )}
@@ -520,7 +509,6 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: C.paper,
     backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: C.card,
   },
   profileInfo: { alignItems: 'center' },
   name: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 28, letterSpacing: -0.5, color: C.ink, textAlign: 'center' },

@@ -6,6 +6,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
+import PostStats, { hasPostStats } from '../../components/PostStats';
 import CreatorInsights, { type FollowerCount } from '../../components/CreatorInsights';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 
@@ -95,7 +96,7 @@ export default function CreatorPublicProfileScreen() {
     if (redemptionIds.length > 0) {
       const { data: posts } = await supabase
         .from('posts')
-        .select('redemption_id, platform, video_url, views, likes, comments')
+        .select('*')
         .in('redemption_id', redemptionIds);
       for (const p of (posts ?? [])) {
         if (!postsByRedemption[p.redemption_id]) postsByRedemption[p.redemption_id] = [];
@@ -319,7 +320,7 @@ export default function CreatorPublicProfileScreen() {
               </TouchableOpacity>
             </View>
             {selectedCircuit?.posts?.filter((p: any) => p.video_url).map((p: any, pi: number) => {
-              const hasStats = p.views != null || p.likes != null || p.comments != null;
+              const hasStats = hasPostStats(p);
               return (
                 <View key={pi} style={postModal.postBlock}>
                   <TouchableOpacity style={postModal.linkRow} onPress={() => Linking.openURL(p.video_url)} activeOpacity={0.75}>
@@ -328,18 +329,7 @@ export default function CreatorPublicProfileScreen() {
                     <Icon name="arrow" size={13} color={C.accent} />
                   </TouchableOpacity>
                   {hasStats ? (
-                    <View style={postModal.statsGrid}>
-                      {[
-                        { label: 'Views', val: p.views },
-                        { label: 'Comments', val: p.comments },
-                        { label: 'Likes', val: p.likes },
-                      ].map(s => (
-                        <View key={s.label} style={postModal.statBox}>
-                          <Text style={postModal.statNum}>{(s.val ?? 0).toLocaleString()}</Text>
-                          <Text style={postModal.statLabel}>{s.label}</Text>
-                        </View>
-                      ))}
-                    </View>
+                    <PostStats post={p} />
                   ) : (
                     <Text style={postModal.pendingStats}>Stats will be added at 24h, 48h, and 7 days after posting.</Text>
                   )}
