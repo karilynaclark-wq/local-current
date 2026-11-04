@@ -4,6 +4,7 @@
 // structured summary of what they post about and how local it is.
 //
 // Body: { creatorId: string, dryRun?: boolean, promptOverride?: string }
+//   (cron-secret callers may also send { postsText } to test on pasted captions)
 //   (cron-secret callers may pass { email } instead of creatorId)
 //  - dryRun: return the input + summary without saving (for prompt testing)
 //  - promptOverride: replace the instructions (testing only; cron-secret callers)
@@ -18,33 +19,26 @@ const MODEL = 'claude-haiku-5-5'; // cheapest current model; summaries are short
 const MAX_POSTS = 30;            // newest across platforms
 const MAX_AGE_DAYS = 365;        // older posts don't reflect what they post now
 
-export const INSTRUCTIONS = `You summarize a social media creator for Local Current, an app where Chicago businesses give creators free event tickets in exchange for an honest video. Businesses read this summary to decide whether a creator fits their event.
+export const INSTRUCTIONS = `You analyze a social media creator's recent posts for Local Current, an app where Chicago businesses give creators free event tickets in exchange for an honest video.
 
-You get the creator's recent posts (platform, date, caption, views). Captions are all you can see, not the videos themselves, so describe only what the captions and hashtags actually support. If captions are sparse or vague, say so and lower your confidence rather than guessing.
+You get the creator's recent posts (platform, date, caption, views). Captions are all you can see, not the videos, so use only what the captions and hashtags actually say. Do not guess.
 
-Write for a busy business owner: plain, specific, neutral. Name real places, neighborhoods, and topics when captions mention them. Do not flatter or judge the creator, and do not mention follower counts (the app shows those separately).
-
-Field guidance:
-- summary: one or two sentences on what they post about and where.
-- local_share: fraction of posts (0 to 1) clearly about Chicago or the Chicago area.
-- neighborhoods: Chicago neighborhoods or suburbs that are literally named in the captions (in words or hashtags), most frequent first. Never infer a neighborhood from a venue name. Empty if none.
-- topics: 2 to 5 short lowercase topics, most frequent first (e.g. "food", "nightlife", "fitness", "fashion", "comedy", "family").
-- content_style: a short phrase on format/tone as far as captions show it (e.g. "casual restaurant reviews", "day-in-the-life vlogs").
-- event_fit: "high" if they regularly post local experiences like restaurants, bars, shows, or events; "medium" if some; "low" if rarely.
-- confidence: "high", "medium", or "low", based on how many posts there are and how informative the captions are.`;
+Fields:
+- post_locations: one entry per post, in the order given, labeling where the post takes place:
+  "chicago" if the caption names Chicago, a Chicago neighborhood or suburb, a Chicago hashtag, or a venue, event, or show you know is in the Chicago area;
+  "elsewhere" if it names another city, state, country, or trip;
+  "unknown" if there's no caption or nothing in it indicates a place.
+- neighborhoods: Chicago neighborhoods or suburbs literally named in the captions (in words or hashtags), most frequent first. Never infer a neighborhood from a venue name. Empty if none.
+- topics: 2 to 5 short lowercase topics, most frequent first (e.g. "food", "nightlife", "comedy", "fitness", "fashion", "family", "dogs").`;
 
 const SUMMARY_SCHEMA = {
   type: 'object',
   properties: {
-    summary: { type: 'string' },
-    local_share: { type: 'number' },
+    post_locations: { type: 'array', items: { type: 'string', enum: ['chicago', 'elsewhere', 'unknown'] } },
     neighborhoods: { type: 'array', items: { type: 'string' } },
     topics: { type: 'array', items: { type: 'string' } },
-    content_style: { type: 'string' },
-    event_fit: { type: 'string', enum: ['high', 'medium', 'low'] },
-    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
-  required: ['summary', 'local_share', 'neighborhoods', 'topics', 'content_style', 'event_fit', 'confidence'],
+  required: ['post_locations', 'neighborhoods', 'topics'],
   additionalProperties: false,
 };
 
@@ -77,6 +71,39 @@ const postLine = (r: PostRow) => [
   r.caption || '(no caption)',
 ].filter(Boolean).join(' · ');
 
+async function summarize(userContent: string, promptOverride?: string): Promise<any> {
+  const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2000,
+    system: promptOverride ?? INSTRUCTIONS,
+    messages: [{ role: 'user', content: userContent }],
+    output_config: {
+      effort: 'low',
+      format: { type: 'json_schema', schema: SUMMARY_SCHEMA },
+    },
+  } as any);
+  if (response.stop_reason === 'refusal') return { error: 'Model declined', stop_details: (response as any).stop_details };
+  if (response.stop_reason === 'max_tokens') return { error: 'Summary was cut off' };
+  const text = response.content.find((b: any) => b.type === 'text') as any;
+  const raw = JSON.parse(text?.text ?? '{}');
+  // Local share is computed here, over posts whose location is known, so it's
+  // consistent and auditable rather than a number the model estimates.
+  const locs: string[] = raw.post_locations ?? [];
+  const chicago = locs.filter((l) => l === 'chicago').length;
+  const known = chicago + locs.filter((l) => l === 'elsewhere').length;
+  return {
+    summary: {
+      local_share: known ? Math.round((chicago / known) * 100) / 100 : null,
+      local_basis: { chicago, elsewhere: known - chicago, unknown: locs.length - known },
+      neighborhoods: raw.neighborhoods ?? [],
+      topics: raw.topics ?? [],
+    },
+    post_locations: locs,
+    usage: response.usage,
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
@@ -89,9 +116,15 @@ serve(async (req) => {
 
   try {
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { creatorId: bodyCreatorId, email, dryRun = false, promptOverride } = await req.json();
+    const { creatorId: bodyCreatorId, email, dryRun = false, promptOverride, postsText } = await req.json();
     const cronSecret = Deno.env.get('CRON_SECRET');
     const trusted = !!cronSecret && req.headers.get('x-cron-secret') === cronSecret;
+
+    // Testing: trusted callers can summarize pasted captions for any page (not saved).
+    if (trusted && postsText) {
+      const r = await summarize(String(postsText), promptOverride);
+      return json(r);
+    }
 
     // Testing convenience: trusted callers may look a creator up by email.
     let creatorId = bodyCreatorId;
@@ -137,23 +170,9 @@ serve(async (req) => {
     const handles = (conns ?? []).map((c: any) => `${c.platform}: @${c.username}`).join(', ');
     const userContent = `Creator accounts: ${handles}\n\nRecent posts (${lines.length}):\n${lines.join('\n')}`;
 
-    // ── Claude ──
-    const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      system: promptOverride ?? INSTRUCTIONS,
-      messages: [{ role: 'user', content: userContent }],
-      output_config: {
-        effort: 'low',
-        format: { type: 'json_schema', schema: SUMMARY_SCHEMA },
-      },
-    } as any);
-
-    if (response.stop_reason === 'refusal') return json({ error: 'Model declined', stop_details: (response as any).stop_details }, 502);
-    if (response.stop_reason === 'max_tokens') return json({ error: 'Summary was cut off' }, 502);
-    const text = response.content.find((b: any) => b.type === 'text') as any;
-    const summary = JSON.parse(text?.text ?? '{}');
+    const r = await summarize(userContent, promptOverride);
+    if ('error' in r) return json(r, 502);
+    const summary = r.summary;
 
     if (!dryRun) {
       await db.from('creators')
@@ -165,7 +184,7 @@ serve(async (req) => {
       summary,
       saved: !dryRun,
       ...(dryRun ? { input: userContent } : {}),
-      usage: response.usage,
+      usage: r.usage,
     });
   } catch (err: any) {
     return json({ error: err.message }, 500);
