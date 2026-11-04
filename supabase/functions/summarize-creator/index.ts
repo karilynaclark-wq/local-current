@@ -15,6 +15,16 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 
+// Fixed topic list so topics read the same across creators and runs.
+export const TOPICS = [
+  'food', 'drinks', 'coffee', 'nightlife', 'live music', 'comedy', 'arts & culture',
+  'festivals & events', 'sports', 'fitness', 'wellness', 'beauty', 'fashion', 'shopping',
+  'family', 'pets', 'outdoors', 'travel', 'lifestyle', 'home & design',
+] as const;
+
+// Automatic refreshes (after a sync) only re-run once a summary is this old.
+const REFRESH_DAYS = 14;
+
 const MODEL = 'claude-haiku-5-5'; // cheapest current model; summaries are short text tasks
 const MAX_POSTS = 30;            // newest across platforms
 const MAX_AGE_DAYS = 365;        // older posts don't reflect what they post now
@@ -29,14 +39,14 @@ Fields:
   "elsewhere" if it names another city, state, country, or trip;
   "unknown" if there's no caption or nothing in it indicates a place.
 - neighborhoods: Chicago neighborhoods or suburbs literally named in the captions (in words or hashtags), most frequent first. Never infer a neighborhood from a venue name. Empty if none.
-- topics: 2 to 5 short lowercase topics, most frequent first (e.g. "food", "nightlife", "comedy", "fitness", "fashion", "family", "dogs").`;
+- topics: 1 to 4 topics from the allowed list that best describe the posts, most frequent first. "pets" covers dogs and other animals; "drinks" covers bars, cocktails, and breweries; "festivals & events" covers street fests, markets, and one-off events.`;
 
 const SUMMARY_SCHEMA = {
   type: 'object',
   properties: {
     post_locations: { type: 'array', items: { type: 'string', enum: ['chicago', 'elsewhere', 'unknown'] } },
     neighborhoods: { type: 'array', items: { type: 'string' } },
-    topics: { type: 'array', items: { type: 'string' } },
+    topics: { type: 'array', items: { type: 'string', enum: [...TOPICS] } },
   },
   required: ['post_locations', 'neighborhoods', 'topics'],
   additionalProperties: false,
@@ -134,8 +144,10 @@ serve(async (req) => {
       creatorId = c?.id;
     }
     if (!creatorId && trusted && profileId) {
-      const { data: c } = await db.from('creators').select('id').eq('profile_id', profileId).maybeSingle();
+      const { data: c } = await db.from('creators').select('id, ai_summary_at').eq('profile_id', profileId).maybeSingle();
       if (!c) return json({ skipped: 'not a creator' });
+      const age = c.ai_summary_at ? Date.now() - new Date(c.ai_summary_at).getTime() : Infinity;
+      if (age < REFRESH_DAYS * 86_400_000) return json({ skipped: 'summary is recent' });
       creatorId = c.id;
     }
     if (!creatorId) return json({ error: 'creatorId required' }, 400);
