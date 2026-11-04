@@ -15,8 +15,7 @@ export default function BusinessHeader({ business, neighborhood, onAvatarPress, 
 }) {
   const ig = business?.instagram_handle?.replace('@', '');
   const tt = business?.tiktok_handle?.replace('@', '');
-  const street = (business?.address ?? '').split(',')[0]?.trim();
-  const place = [street, neighborhood].filter(Boolean).join(' · ');
+  const place = (business?.address ?? '').trim(); // full address, e.g. "1234 Street, Chicago, IL 60601"
 
   const avatar = (
     <View style={styles.avatar}>
