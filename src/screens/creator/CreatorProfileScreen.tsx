@@ -517,9 +517,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', borderRadius: 40,
   },
   avatarEditBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: C.muted2, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', bottom: 2, right: 2,
+    width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: C.paper,
+    backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: C.card,
   },
   profileInfo: { alignItems: 'center' },
