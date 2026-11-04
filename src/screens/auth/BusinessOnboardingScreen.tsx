@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
+import WelcomeFlow, { type WelcomePage } from '../../components/WelcomeFlow';
 import {
   connectTikTok, connectInstagram, getConnections,
   type SocialConnection, type Platform as SocialApi, type ConnectResult,
@@ -22,8 +23,19 @@ const CONNECTORS: Record<SocialApi, { label: string; kind: 'tt' | 'ig'; connect:
 
 type Step = 1 | 2;
 
+// Shown once, right after the business finishes sign-up.
+const WELCOME_PAGES: WelcomePage[] = [
+  { icon: 'sparkles', title: "You're in!", body: 'Welcome to Local Current. Chicago creators are ready to come to your events.', cta: 'Show me how it works' },
+  { icon: 'ticket', title: 'Post an event', body: 'Add your ticket link and a promo code. Each creator gets 2 free tickets: one for them and one for a friend.', cta: 'Next' },
+  { icon: 'person', title: 'Creators claim', body: 'Verified local creators claim your tickets. Those with bigger followings get first access.', cta: 'Next' },
+  { icon: 'film', title: 'See the results', body: "Creators post an honest video within 48 hours, and you'll see views and engagement for every post.", cta: 'Next' },
+  { icon: 'bell', title: 'Stay in the loop', body: "We'll let you know when creators claim your tickets and when their videos go live.", cta: 'Turn on notifications' },
+];
+
 export default function BusinessOnboardingScreen() {
   const navigation = useNavigation<any>();
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [firstName, setFirstName] = useState('');
   const [step, setStep] = useState<Step>(1);
 
   const [fullName, setFullName] = useState('');
@@ -151,12 +163,18 @@ export default function BusinessOnboardingScreen() {
         subscription_tier: 'starter',
       });
       if (bizError) throw bizError;
-      await supabase.auth.refreshSession();
+      setFirstName(String(user.user_metadata?.full_name ?? fullName ?? '').split(' ')[0]);
+      setShowWelcome(true);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  if (showWelcome) {
+    // Refreshing the session re-runs RootNavigator's check and opens the app.
+    return <WelcomeFlow pages={WELCOME_PAGES} firstName={firstName} onDone={() => { supabase.auth.refreshSession(); }} />;
   }
 
   return (

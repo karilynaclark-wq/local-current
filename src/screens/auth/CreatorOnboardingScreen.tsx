@@ -8,14 +8,14 @@ import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
 import { ActivityIndicator } from 'react-native';
-import { registerForPushNotifications } from '../../lib/notifications';
+import WelcomeFlow, { type WelcomePage } from '../../components/WelcomeFlow';
 import {
   connectTikTok, connectInstagram, getConnections,
   type SocialConnection, type Platform as SocialApi, type ConnectResult,
 } from '../../lib/socialConnect';
 
 // Shown once, right after sign-up, before the creator reaches the app.
-const WELCOME_PAGES: { icon: any; title: string; body: string; cta: string }[] = [
+const WELCOME_PAGES: WelcomePage[] = [
   { icon: 'sparkles', title: "You're in!", body: 'Welcome to Local Current. Free tickets to Chicago events are waiting.', cta: 'Show me how it works' },
   { icon: 'ticket', title: 'Claim free tickets', body: 'Tap an event, claim it, and get a code for 2 tickets: one for you and one for a friend.', cta: 'Next' },
   { icon: 'pin', title: 'Go and have fun', body: "Use the code on the event's ticket site, then enjoy the night.", cta: 'Next' },
@@ -54,16 +54,10 @@ export default function CreatorOnboardingScreen() {
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState<Partial<Record<SocialApi, SocialConnection>>>({});
   const [connecting, setConnecting] = useState<SocialApi | null>(null);
-  // null = sign-up form; 0..4 = welcome pages after the account is created
+  // null = sign-up form; set once the account exists to show the welcome pages
   const [welcomePage, setWelcomePage] = useState<number | null>(null);
   const [firstName, setFirstName] = useState('');
 
-  async function finishWelcome(askForNotifications: boolean) {
-    if (askForNotifications) await registerForPushNotifications(true).catch(() => null);
-    // Refreshing the session re-runs RootNavigator's status check, which swaps
-    // to the creator tabs.
-    await supabase.auth.refreshSession();
-  }
 
   async function handleConnect(api: SocialApi) {
     const { label, connect } = CONNECTORS[api];
@@ -149,39 +143,7 @@ export default function CreatorOnboardingScreen() {
   }
 
   if (welcomePage !== null) {
-    const page = WELCOME_PAGES[welcomePage];
-    const last = welcomePage === WELCOME_PAGES.length - 1;
-    const isTip = welcomePage >= 1 && welcomePage <= 3;
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.welcome}>
-          {isTip ? (
-            <View style={styles.dots}>
-              {[1, 2, 3].map(i => <View key={i} style={[styles.dot, i === welcomePage && styles.dotOn]} />)}
-            </View>
-          ) : <View style={styles.dots} />}
-          <View style={styles.welcomeBody}>
-            <View style={styles.welcomeIcon}><Icon name={page.icon} size={34} color={C.accent} /></View>
-            <Text style={styles.welcomeTitle}>
-              {welcomePage === 0 && firstName ? `You're in, ${firstName}!` : page.title}
-            </Text>
-            <Text style={styles.welcomeText}>{page.body}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => (last ? finishWelcome(true) : setWelcomePage(welcomePage + 1))}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.buttonText}>{page.cta}</Text>
-          </TouchableOpacity>
-          {last ? (
-            <TouchableOpacity onPress={() => finishWelcome(false)} style={styles.notNow}>
-              <Text style={styles.notNowText}>Not now</Text>
-            </TouchableOpacity>
-          ) : <View style={styles.notNow} />}
-        </View>
-      </SafeAreaView>
-    );
+    return <WelcomeFlow pages={WELCOME_PAGES} firstName={firstName} onDone={() => { supabase.auth.refreshSession(); }} />;
   }
 
   return (
@@ -259,16 +221,6 @@ export default function CreatorOnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  welcome: { flex: 1, paddingHorizontal: 28, paddingTop: 24, paddingBottom: 12 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, height: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.line2 },
-  dotOn: { width: 22, backgroundColor: C.accent },
-  welcomeBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  welcomeIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  welcomeTitle: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 30, letterSpacing: -0.6, color: C.ink, textAlign: 'center' },
-  welcomeText: { fontFamily: F.body, fontSize: 16, lineHeight: 24, color: C.inkSoft, textAlign: 'center', maxWidth: 320 },
-  notNow: { alignItems: 'center', paddingVertical: 14, minHeight: 46 },
-  notNowText: { fontFamily: F.bodySemi, fontSize: 14, color: C.muted },
   container: { flex: 1, backgroundColor: C.paper },
   scroll: { padding: 24, paddingBottom: 40 },
   title: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 26, letterSpacing: -0.4, color: C.ink, marginBottom: 4 },
