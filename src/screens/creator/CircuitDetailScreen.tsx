@@ -617,18 +617,24 @@ export default function CircuitDetailScreen() {
 
         {/* ── State 2a: Booked (code current) — attend & post ── */}
         {hasClaimed && redemptionStatus === 'checked_in' && (
-          <View style={[styles.stateBox, styles.stateBoxComplete]}>
-            <Text style={[styles.stateTitle, { color: C.ok }]}>Have fun!</Text>
+          <View style={styles.bookedWrap}>
+            <Text style={styles.bookedTitle}>Have fun!</Text>
             <View style={styles.bookedRow}>
-              <Icon name="ticket" size={18} color={C.ok} />
+              <Icon name="ticket" size={18} color={C.accent} />
               <Text style={[styles.stepText, { flex: 1 }]}>
-                Tickets were redeemed on the event's ticketing site. For ticket and event details, check the email you used to redeem them.
+                You redeemed tickets on the event's ticketing site. For ticket and event details, check the email you used to redeem them.
               </Text>
             </View>
             <View style={styles.bookedRow}>
-              <Icon name="film" size={18} color={C.ok} />
+              <Icon name="film" size={18} color={C.accent} />
               <Text style={[styles.stepText, { flex: 1 }]}>
-                After the event, post your video within 48 hours. Make sure to use <Text style={{ fontFamily: F.bodySemi }}>#localcurrentapp</Text>; if you don't, it won't get recorded and sent to the business!
+                After the event, post your video within 48 hours. Make sure to use <Text style={{ fontFamily: F.bodySemi }}>#localcurrentapp</Text>.
+              </Text>
+            </View>
+            <View style={styles.bookedRow}>
+              <Icon name="alert" size={18} color="#B45309" />
+              <Text style={[styles.stepText, { flex: 1, color: '#92400E' }]}>
+                If you don't, it won't get recorded and sent to the business!
               </Text>
             </View>
           </View>
@@ -1034,7 +1040,9 @@ const styles = StyleSheet.create({
   reqLine: { paddingHorizontal: 2, paddingTop: 12 },
   reqLineText: { fontFamily: F.body, fontSize: 12.5, color: C.muted, lineHeight: 18 },
   reqLineStatus: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.1 },
-  bookedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 },
+  bookedWrap: { marginBottom: 16 },
+  bookedTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 20, color: C.ink, marginBottom: 6 },
+  bookedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12 },
   reqHeader: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.4, color: C.muted2, marginTop: 18, marginBottom: 10 },
   reqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   reqChip: {
