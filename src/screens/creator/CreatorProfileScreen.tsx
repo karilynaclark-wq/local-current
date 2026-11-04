@@ -508,16 +508,16 @@ const styles = StyleSheet.create({
   profileRow: { alignItems: 'center', marginBottom: 14 },
   avatarCircle: { width: 96, height: 96, borderRadius: 48, marginBottom: 12, overflow: 'visible' },
   avatarPlaceholder: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 96, height: 96, borderRadius: 48,
     backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   avatarImage: { width: 96, height: 96, borderRadius: 48 },
   avatarOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', borderRadius: 40,
+    backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', borderRadius: 48,
   },
   avatarEditBadge: {
-    position: 'absolute', bottom: 2, right: 2,
+    position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: C.paper,
     backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: C.card,
