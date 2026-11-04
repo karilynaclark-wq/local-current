@@ -279,6 +279,7 @@ export default function CircuitDetailScreen() {
       setRedemptionStatus('approved');
       setAccessDetails(code ?? null);
     } catch (e: any) {
+      trackEvent('claim_failed', { circuit_id: circuit.id, error: e.message });
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
@@ -291,6 +292,7 @@ export default function CircuitDetailScreen() {
     try {
       const { error } = await supabase.rpc('withdraw_request', { p_redemption_id: redemptionId });
       if (error) throw error;
+      trackEvent('claim_withdrawn', { circuit_id: circuit.id });
       setRedemptionStatus('cancelled');
       setShowUnclaimModal(false);
     } catch (e: any) {
@@ -333,6 +335,7 @@ export default function CircuitDetailScreen() {
         await supabase.from('redemptions').update({ booked_note: bookedNote }).eq('id', redemptionId);
       } catch { /* column may not exist yet — non-blocking */ }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      trackEvent('tickets_booked', { circuit_id: circuit.id });
       setRedemptionStatus('checked_in');
       setCheckedInAt(now);
       setShowBookModal(false);

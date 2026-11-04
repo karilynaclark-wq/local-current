@@ -2,8 +2,9 @@
 // "You're in!" welcome, the middle pages explain how it works (with progress
 // dots), and the last page asks for notification permission.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { trackEvent } from '../lib/analytics';
 import { C, F, R, S } from '../theme';
 import { Icon } from './Icon';
 import { registerForPushNotifications } from '../lib/notifications';
@@ -15,14 +16,16 @@ export interface WelcomePage {
   cta: string;
 }
 
-export default function WelcomeFlow({ pages, firstName, onDone }: {
+export default function WelcomeFlow({ pages, firstName, onDone, role }: {
   pages: WelcomePage[];
+  role: 'creator' | 'business';
   firstName?: string;
   /** Called after the last page (notifications asked or skipped). */
   onDone: () => void | Promise<void>;
 }) {
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { trackEvent('welcome_page_viewed', { role, page: i + 1, title: pages[i].title }); }, [i]);
   const page = pages[i];
   const last = i === pages.length - 1;
   const tipCount = pages.length - 2;           // pages between welcome and notifications
@@ -30,6 +33,7 @@ export default function WelcomeFlow({ pages, firstName, onDone }: {
 
   async function finish(askForNotifications: boolean) {
     setBusy(true);
+    trackEvent('welcome_completed', { role, notifications: askForNotifications });
     if (askForNotifications) await registerForPushNotifications(true).catch(() => null);
     await onDone();
   }

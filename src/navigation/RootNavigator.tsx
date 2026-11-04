@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { trackScreen } from '../lib/analytics';
+
+const navRef = createNavigationContainerRef<any>();
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
@@ -246,6 +249,7 @@ function AdminStack() {
 }
 
 export default function RootNavigator() {
+  const lastScreen = React.useRef<string | null>(null);
   const { session, profile, loading } = useAuth();
   const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
   const [creatorLoading, setCreatorLoading] = useState(false);
@@ -314,7 +318,15 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navRef}
+      onReady={() => { const r = navRef.getCurrentRoute(); if (r) trackScreen(r.name); }}
+      onStateChange={() => {
+        // One "screen" event per page view, so PostHog shows where people go and drop off.
+        const r = navRef.getCurrentRoute();
+        if (r && r.name !== lastScreen.current) { lastScreen.current = r.name; trackScreen(r.name); }
+      }}
+    >
       {renderStack()}
     </NavigationContainer>
   );

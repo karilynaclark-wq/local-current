@@ -8,6 +8,7 @@ import AddressFields from '../../components/AddressFields';
 import { EMPTY_ADDRESS, formatAddress, validateAddress, type AddressParts } from '../../lib/address';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { trackEvent } from '../../lib/analytics';
 import { signOut } from '../../lib/auth';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
@@ -151,6 +152,7 @@ export default function BusinessOnboardingScreen() {
     // Local Current is Chicago-only for now; turn away businesses outside Illinois.
     const st = address.state.trim().toUpperCase();
     if (st !== 'IL' && st !== 'ILLINOIS') {
+      trackEvent('signup_blocked', { role: 'business', reason: 'outside_illinois' });
       Alert.alert('Sorry!', "We're only live in Chicago right now.");
       return;
     }
@@ -171,6 +173,7 @@ export default function BusinessOnboardingScreen() {
       });
       if (bizError) throw bizError;
       setFirstName(String(user.user_metadata?.full_name ?? fullName ?? '').split(' ')[0]);
+      trackEvent('signup_completed', { role: 'business' });
       setShowWelcome(true);
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -181,7 +184,7 @@ export default function BusinessOnboardingScreen() {
 
   if (showWelcome) {
     // Refreshing the session re-runs RootNavigator's check and opens the app.
-    return <WelcomeFlow pages={WELCOME_PAGES} firstName={firstName} onDone={() => { supabase.auth.refreshSession(); }} />;
+    return <WelcomeFlow role="business" pages={WELCOME_PAGES} firstName={firstName} onDone={() => { supabase.auth.refreshSession(); }} />;
   }
 
   return (

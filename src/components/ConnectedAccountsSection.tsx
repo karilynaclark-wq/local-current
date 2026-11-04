@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
+import { trackEvent } from '../lib/analytics';
 import { C, F } from '../theme';
 import {
   getConnections, connectTikTok, syncTikTok, disconnectTikTok,
@@ -32,6 +33,7 @@ export default function ConnectedAccountsSection() {
     setConnecting(platform);
     try {
       const result = await connect();
+      trackEvent(result === 'success' ? 'social_connected' : 'social_connect_failed', { platform, reason: result, context: 'settings' });
       if (result === 'success') {
         setConnections(await getConnections());
         Alert.alert('Connected', `Your ${label} account is now linked.`);

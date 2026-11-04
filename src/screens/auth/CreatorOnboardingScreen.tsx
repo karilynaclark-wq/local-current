@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { trackEvent } from '../../lib/analytics';
 import { signOut } from '../../lib/auth';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
@@ -69,7 +70,11 @@ export default function CreatorOnboardingScreen() {
         const conn = (await getConnections()).find(c => c.platform === api);
         if (!conn) return;
         setVerified(v => ({ ...v, [api]: conn }));
-      } else if (result === 'account_type') {
+        trackEvent('social_connected', { platform: api, context: 'creator_signup', followers: conn.follower_count });
+      } else {
+        trackEvent('social_connect_failed', { platform: api, reason: result, context: 'creator_signup' });
+      }
+      if (result === 'account_type') {
         Alert.alert('Personal account', "Instagram only lets Business or Creator accounts connect. You can switch to one for free in Instagram's settings, or connect TikTok instead.");
       } else if (result === 'not_configured') {
         Alert.alert('Coming soon', `${label} connection isn't available yet. Try the other platform.`);
@@ -95,6 +100,7 @@ export default function CreatorOnboardingScreen() {
       return;
     }
     if (!CHICAGO_ZIPS.includes(zip)) {
+      trackEvent('signup_blocked', { role: 'creator', reason: 'outside_chicago' });
       Alert.alert('Sorry!', 'Local Current is only open to Chicago creators right now.');
       return;
     }
@@ -135,6 +141,7 @@ export default function CreatorOnboardingScreen() {
       });
       if (error) throw error;
       setFirstName(String(user.user_metadata?.full_name ?? '').split(' ')[0]);
+      trackEvent('signup_completed', { role: 'creator', platforms: [tt && 'tiktok', ig && 'instagram'].filter(Boolean) });
       setWelcomePage(0);
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -144,7 +151,7 @@ export default function CreatorOnboardingScreen() {
   }
 
   if (welcomePage !== null) {
-    return <WelcomeFlow pages={WELCOME_PAGES} firstName={firstName} onDone={() => { supabase.auth.refreshSession(); }} />;
+    return <WelcomeFlow role="creator" pages={WELCOME_PAGES} firstName={firstName} onDone={() => { supabase.auth.refreshSession(); }} />;
   }
 
   return (

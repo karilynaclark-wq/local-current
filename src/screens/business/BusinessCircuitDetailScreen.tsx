@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { trackEvent } from '../../lib/analytics';
 import { Circuit, Post, FILLED_STATUSES } from '../../types';
 import { minFollowersLabel } from '../../lib/eligibility';
 import { C, F, R, S } from '../../theme';
@@ -45,6 +46,7 @@ function RatingModal({ visible, redemptionId, circuitTitle, initialRating, onClo
     }).eq('id', redemptionId);
     setSaving(false);
     if (error) { Alert.alert('Error', error.message); return; }
+    trackEvent('creator_rated', { rating });
     onSaved();
     onClose();
   }
@@ -371,7 +373,7 @@ export default function BusinessCircuitDetailScreen() {
           setDeleting(true);
           const { error } = await supabase.from('circuits').delete().eq('id', circuit.id);
           if (error) { Alert.alert('Error', error.message); setDeleting(false); }
-          else { navigation.goBack(); }
+          else { trackEvent('circuit_deleted', { circuit_id: circuit.id, claims: claimCount }); navigation.goBack(); }
         },
       },
     ]);
@@ -382,7 +384,7 @@ export default function BusinessCircuitDetailScreen() {
     const newActive = !circuit.is_active;
     const { error } = await supabase.from('circuits').update({ is_active: newActive }).eq('id', circuit.id);
     if (error) { Alert.alert('Error', error.message); }
-    else { setCircuit(prev => ({ ...prev, is_active: newActive })); }
+    else { trackEvent(newActive ? 'circuit_resumed' : 'circuit_paused', { circuit_id: circuit.id }); setCircuit(prev => ({ ...prev, is_active: newActive })); }
     setToggling(false);
   }
 
