@@ -211,9 +211,8 @@ export default function CreatorPublicProfileScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+          <CreatorInsights summary={(creator as any)?.ai_summary} />
         </View>
-
-        <CreatorInsights summary={(creator as any)?.ai_summary} />
 
         <View style={styles.tabBar}>
           <TouchableOpacity style={[styles.tab, activeTab === 'circuits' && styles.tabActive]} onPress={() => setActiveTab('circuits')}>

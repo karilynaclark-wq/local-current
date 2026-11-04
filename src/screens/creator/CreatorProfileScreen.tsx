@@ -372,6 +372,7 @@ export default function CreatorProfileScreen() {
               );
             })}
           </View>
+          <CreatorInsights summary={(creator as any)?.ai_summary} />
           <ManualEntrySheet
             platform={manualFor ?? 'instagram'}
             visible={!!manualFor}
@@ -382,8 +383,6 @@ export default function CreatorProfileScreen() {
         </View>
 
         {/* Tabs */}
-        <CreatorInsights summary={(creator as any)?.ai_summary} />
-
         <View style={styles.tabBar}>
           <TouchableOpacity style={[styles.tab, activeTab === 'circuits' && styles.tabActive]} onPress={() => setActiveTab('circuits')}>
             <Mark size={14} color={activeTab === 'circuits' ? '#fff' : C.muted2} />
