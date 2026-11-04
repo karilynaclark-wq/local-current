@@ -14,7 +14,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 
-const MODEL = 'claude-opus-5-5';
+const MODEL = 'claude-haiku-5-5'; // cheapest current model; summaries are short text tasks
 const MAX_POSTS_PER_PLATFORM = 20;
 
 export const INSTRUCTIONS = `You summarize a social media creator for Local Current, an app where Chicago businesses give creators free event tickets in exchange for an honest video. Businesses read this summary to decide whether a creator fits their event.
@@ -128,7 +128,7 @@ serve(async (req) => {
 
     // ── Claude ──
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
-    const response = await client.beta.messages.create({
+    const response = await client.messages.create({
       model: MODEL,
       max_tokens: 4000,
       system: promptOverride ?? INSTRUCTIONS,
@@ -137,9 +137,6 @@ serve(async (req) => {
         effort: 'low',
         format: { type: 'json_schema', schema: SUMMARY_SCHEMA },
       },
-      // On a safety decline, the API retries on a suitable fallback model in the same call.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
     } as any);
 
     if (response.stop_reason === 'refusal') return json({ error: 'Model declined', stop_details: (response as any).stop_details }, 502);
