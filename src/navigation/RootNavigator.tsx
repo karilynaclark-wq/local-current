@@ -254,10 +254,12 @@ export default function RootNavigator() {
   const [hasBusiness, setHasBusiness] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (session) {
-      registerForPushNotifications();
+    // Creators are asked during onboarding (after we explain why); everyone else
+    // is asked on sign-in. Either way, an existing permission refreshes the token.
+    if (session && profile) {
+      registerForPushNotifications(profile.role !== 'creator');
     }
-  }, [session]);
+  }, [session, profile?.role]);
 
   useEffect(() => {
     if (session && profile?.role === 'creator') {

@@ -18,7 +18,7 @@ Notifications.setNotificationHandler({
  * Request permission and save the Expo push token to the user's profile.
  * Call once after the user is authenticated.
  */
-export async function registerForPushNotifications(): Promise<string | null> {
+export async function registerForPushNotifications(prompt = true): Promise<string | null> {
   if (!Device.isDevice) {
     // Push tokens only work on real devices
     return null;
@@ -28,6 +28,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   let finalStatus = existing;
 
   if (existing !== 'granted') {
+    if (!prompt) return null; // only refresh the token when permission was already given
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
