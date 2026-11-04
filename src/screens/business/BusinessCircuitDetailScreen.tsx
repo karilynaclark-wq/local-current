@@ -577,8 +577,8 @@ export default function BusinessCircuitDetailScreen() {
                   }),
                 },
               ].map(s => (
-                <TouchableOpacity key={s.label} style={styles.statCard} onPress={s.onPress} activeOpacity={0.75}>
-                  <Text style={styles.statNum}>{s.num}</Text>
+                <TouchableOpacity key={s.label} style={[styles.statCard, styles.statCardSmall]} onPress={s.onPress} activeOpacity={0.75}>
+                  <Text style={[styles.statNum, styles.statNumSmall]}>{s.num}</Text>
                   <Text style={styles.statLabel}>{s.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -786,6 +786,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', borderWidth: 1, borderColor: C.line, ...(S.card as any),
   },
   statNum: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 28, color: C.accent, letterSpacing: -0.5 },
+  statNumSmall: { fontSize: 18, letterSpacing: -0.2 },
+  statCardSmall: { paddingVertical: 12 },
   statLabel: { fontFamily: F.mono, fontSize: 11, color: C.muted2, marginTop: 2, letterSpacing: 0.6 },
   detailSection: {
     backgroundColor: C.card, borderRadius: R.lg, padding: 16,
