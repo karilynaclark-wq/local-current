@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   ScrollView, Linking, Alert, Modal, ActivityIndicator, TextInput,
@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { signOut } from '../../lib/auth';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import ConnectedAccountsSection from '../../components/ConnectedAccountsSection';
 
 interface MenuItem {
   iconName: any;
@@ -25,6 +26,14 @@ export default function SettingsScreen() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from('profiles').select('role').eq('id', user.id).single().then(({ data }) => setRole(data?.role ?? null));
+    });
+  }, []);
 
   async function handleResetPassword() {
     setResettingPassword(true);
@@ -110,6 +119,7 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {role === 'creator' && <ConnectedAccountsSection />}
         {sections.map((section, si) => (
           <View key={si} style={styles.section}>
             {section.title && <Text style={styles.sectionTitle}>{section.title}</Text>}

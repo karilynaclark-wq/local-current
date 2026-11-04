@@ -90,7 +90,6 @@ export default function CreatorProfileScreen() {
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [selectedCircuit, setSelectedCircuit] = useState<CompletedCircuit | null>(null);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
-  const [showAccounts, setShowAccounts] = useState(false);
   // Show the account rows if nothing is verified yet or a connection expired.
   const needsAccountAttention = !connections.some(c => c.connection_type === 'oauth') || connections.some(c => c.needs_reconnect);
   const [connecting, setConnecting] = useState<Platform | null>(null);
@@ -308,7 +307,7 @@ export default function CreatorProfileScreen() {
                 </View>
               )}
               <View style={styles.avatarEditBadge}>
-                <Icon name="phone" size={11} color={C.card} />
+                <Icon name="plus" size={13} color={C.card} stroke={2.4} />
               </View>
             </TouchableOpacity>
             <View style={styles.profileInfo}>
@@ -334,40 +333,14 @@ export default function CreatorProfileScreen() {
             summary={(creator as any)?.ai_summary}
           />
 
-          <TouchableOpacity onPress={() => setShowAccounts(v => !v)} style={styles.manageLink} activeOpacity={0.7}>
-            <Text style={styles.manageLinkText}>{showAccounts ? 'Hide connected accounts' : 'Manage connected accounts'}</Text>
-          </TouchableOpacity>
+          {needsAccountAttention && (
+            <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.manageLink} activeOpacity={0.7}>
+              <Text style={styles.manageLinkText}>
+                {connections.some(c => c.needs_reconnect) ? 'Reconnect your account in Settings →' : 'Connect TikTok or Instagram in Settings →'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
-          {/* Connected accounts (collapsed unless something needs attention) */}
-          {(showAccounts || needsAccountAttention) && <View style={styles.connectSection}>
-            <Text style={styles.connectHeader}>Connected accounts</Text>
-            {(['tiktok', 'instagram'] as Platform[]).map(platform => {
-              const conn = connections.find(c => c.platform === platform);
-              return conn ? (
-                <ConnectedAccountRow
-                  key={platform}
-                  conn={conn}
-                  busy={connecting === platform}
-                  onDisconnect={() => handleDisconnect(platform)}
-                  onReconnect={() => handleConnect(platform)}
-                />
-              ) : (
-                <ConnectButton
-                  key={platform}
-                  platform={platform}
-                  busy={connecting === platform}
-                  onPress={() => handleConnect(platform)}
-                  onManual={platform === 'instagram' ? () => setManualFor(platform) : undefined}
-                />
-              );
-            })}
-          </View>}
-          <ManualEntrySheet
-            platform={manualFor ?? 'instagram'}
-            visible={!!manualFor}
-            onClose={() => setManualFor(null)}
-            onSave={handleManualSave}
-          />
 
         </View>
 
