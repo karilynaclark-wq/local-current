@@ -17,7 +17,9 @@ export default function SubmitPostScreen() {
   const route = useRoute<any>();
   const redemption: Redemption = route.params.redemption;
 
-  const requiredPlatform: string | null = (redemption as any).circuit?.required_platform ?? null;
+  // 'either' (or unset) means no specific platform is required.
+  const rp = (redemption as any).circuit?.required_platform;
+  const requiredPlatform: 'tiktok' | 'instagram' | null = rp === 'tiktok' || rp === 'instagram' ? rp : null;
 
   const [tiktokUrl, setTiktokUrl] = useState('');
   const [instagramUrl, setInstagramUrl] = useState('');
@@ -119,7 +121,6 @@ export default function SubmitPostScreen() {
             {requiredPlatform
               ? `You must post to ${requiredPlatform === 'tiktok' ? 'TikTok' : 'Instagram'} for this current. The other platform is optional.`
               : 'Paste the link(s) to your post below. At least one is required.'}
-            {' '}Tip: with TikTok or Instagram connected, posts tagged #localcurrentapp are added automatically.
           </Text>
 
           {/* TikTok */}
