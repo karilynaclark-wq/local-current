@@ -15,7 +15,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 
 const MODEL = 'claude-haiku-5-5'; // cheapest current model; summaries are short text tasks
-const MAX_POSTS_PER_PLATFORM = 20;
+const MAX_POSTS = 30;            // newest across platforms
+const MAX_AGE_DAYS = 365;        // older posts don't reflect what they post now
 
 export const INSTRUCTIONS = `You summarize a social media creator for Local Current, an app where Chicago businesses give creators free event tickets in exchange for an honest video. Businesses read this summary to decide whether a creator fits their event.
 
@@ -26,7 +27,7 @@ Write for a busy business owner: plain, specific, neutral. Name real places, nei
 Field guidance:
 - summary: one or two sentences on what they post about and where.
 - local_share: fraction of posts (0 to 1) clearly about Chicago or the Chicago area.
-- neighborhoods: Chicago neighborhoods or suburbs mentioned, most frequent first. Empty if none.
+- neighborhoods: Chicago neighborhoods or suburbs that are literally named in the captions (in words or hashtags), most frequent first. Never infer a neighborhood from a venue name. Empty if none.
 - topics: 2 to 5 short lowercase topics, most frequent first (e.g. "food", "nightlife", "fitness", "fashion", "comedy", "family").
 - content_style: a short phrase on format/tone as far as captions show it (e.g. "casual restaurant reviews", "day-in-the-life vlogs").
 - event_fit: "high" if they regularly post local experiences like restaurants, bars, shows, or events; "medium" if some; "low" if rarely.
@@ -53,24 +54,28 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
 
-/** One line per post: "tiktok · 2026-10-25 · 1,204 views · caption". */
-function postLines(platform: string, posts: any[]): string[] {
-  return (posts ?? []).slice(0, MAX_POSTS_PER_PLATFORM).map((p) => {
-    const caption = platform === 'tiktok'
-      ? [p.title, p.video_description].filter(Boolean).join(' ')
-      : (p.caption ?? '');
+interface PostRow { platform: string; when: Date | null; views: number | null; caption: string }
+
+function toRows(platform: string, posts: any[]): PostRow[] {
+  return (posts ?? []).map((p) => {
+    // TikTok often repeats the title inside the description; keep one copy.
+    const parts = platform === 'tiktok' ? [p.title, p.video_description] : [p.caption];
+    const caption = [...new Set(parts.map((x: string) => (x ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean))].join(' ');
     const when = platform === 'tiktok'
       ? (p.create_time ? new Date(Number(p.create_time) * 1000) : null)
       : (p.timestamp ? new Date(p.timestamp) : null);
     const views = p.view_count ?? p.views;
-    return [
-      platform,
-      when ? when.toISOString().slice(0, 10) : 'unknown date',
-      views != null ? `${Number(views).toLocaleString('en-US')} views` : null,
-      (caption || '(no caption)').replace(/\s+/g, ' ').trim(),
-    ].filter(Boolean).join(' · ');
+    return { platform, when, views: views != null ? Number(views) : null, caption };
   });
 }
+
+/** One line per post: "tiktok · 2026-10-25 · 1,204 views · caption". */
+const postLine = (r: PostRow) => [
+  r.platform,
+  r.when ? r.when.toISOString().slice(0, 10) : 'unknown date',
+  r.views != null ? `${r.views.toLocaleString('en-US')} views` : null,
+  r.caption || '(no caption)',
+].filter(Boolean).join(' · ');
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -120,7 +125,13 @@ serve(async (req) => {
       .select('platform, username, recent_posts')
       .eq('profile_id', creator.profile_id)
       .eq('connection_type', 'oauth');
-    const lines = (conns ?? []).flatMap((c: any) => postLines(c.platform, c.recent_posts));
+    const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
+    const lines = (conns ?? [])
+      .flatMap((c: any) => toRows(c.platform, c.recent_posts))
+      .filter((r) => !r.when || r.when.getTime() >= cutoff)
+      .sort((a, b) => (b.when?.getTime() ?? 0) - (a.when?.getTime() ?? 0))
+      .slice(0, MAX_POSTS)
+      .map(postLine);
     if (!lines.length) return json({ error: 'No connected posts to summarize' }, 422);
 
     const handles = (conns ?? []).map((c: any) => `${c.platform}: @${c.username}`).join(', ');
