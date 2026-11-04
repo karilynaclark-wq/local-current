@@ -147,6 +147,12 @@ export default function BusinessOnboardingScreen() {
       Alert.alert('Address', addressError);
       return;
     }
+    // Local Current is Chicago-only for now; turn away businesses outside Illinois.
+    const st = address.state.trim().toUpperCase();
+    if (st !== 'IL' && st !== 'ILLINOIS') {
+      Alert.alert('Sorry!', "We're only live in Chicago right now.");
+      return;
+    }
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
