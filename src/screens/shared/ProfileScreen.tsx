@@ -9,6 +9,7 @@ import AddressFields from '../../components/AddressFields';
 import { EMPTY_ADDRESS, formatAddress, parseAddress, validateAddress, type AddressParts } from '../../lib/address';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
+import { useNavigation } from '@react-navigation/native';
 import { signOut } from '../../lib/auth';
 import { Profile } from '../../types';
 import { C, F, R, S } from '../../theme';
@@ -17,6 +18,7 @@ import { Icon } from '../../components/Icon';
 const FOLLOWER_RANGES = ['Under 1K', '1K–5K', '5K–10K', '10K–50K', '50K–100K', '100K+'];
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<'creator' | 'business' | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,9 @@ export default function ProfileScreen() {
         }).eq('profile_id', user.id);
         if (error) throw error;
       }
-      Alert.alert('Saved', 'Your profile has been updated.');
+      Alert.alert('Saved', 'Your profile has been updated.', [
+        { text: 'OK', onPress: () => navigation.canGoBack() && navigation.goBack() },
+      ]);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -158,10 +162,12 @@ export default function ProfileScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Text style={styles.title}>Profile</Text>
-            <TouchableOpacity onPress={signOut}>
-              <Text style={styles.signOut}>Sign out</Text>
-            </TouchableOpacity>
+            {navigation.canGoBack() ? (
+              <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="back" size={22} color={C.accent} />
+              </TouchableOpacity>
+            ) : null}
+            <Text style={[styles.title, { flex: 1 }]}>Edit profile</Text>
           </View>
 
           <Text style={styles.email}>{profile?.email}</Text>
@@ -286,7 +292,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
   scroll: { padding: 24, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
   title: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 26, letterSpacing: -0.4, color: C.ink },
   signOut: { fontFamily: F.body, color: C.muted2, fontSize: 14 },
   email: { fontFamily: F.mono, fontSize: 12, color: C.accent, letterSpacing: 0.3, marginBottom: 24 },
