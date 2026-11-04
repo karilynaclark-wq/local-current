@@ -8,6 +8,7 @@ import AddressFields from '../../components/AddressFields';
 import { EMPTY_ADDRESS, formatAddress, validateAddress, type AddressParts } from '../../lib/address';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { signOut } from '../../lib/auth';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
 import WelcomeFlow, { type WelcomePage } from '../../components/WelcomeFlow';
@@ -292,6 +293,9 @@ export default function BusinessOnboardingScreen() {
               </TouchableOpacity>
             </>
           )}
+          <TouchableOpacity onPress={async () => { await signOut().catch(() => {}); navigation.reset({ index: 0, routes: [{ name: 'RoleSelect' }] }); }} style={{ alignItems: 'center', paddingVertical: 16 }}>
+            <Text style={{ fontFamily: F.bodySemi, fontSize: 13.5, color: C.muted }}>Sign out</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
