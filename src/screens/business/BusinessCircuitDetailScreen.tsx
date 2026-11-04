@@ -259,6 +259,7 @@ export default function BusinessCircuitDetailScreen() {
 
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [showVoucherPreview, setShowVoucherPreview] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [creatorListModal, setCreatorListModal] = useState<{ title: string; creators: any[] } | null>(null);
   const [ratingTarget, setRatingTarget] = useState<{ redemptionId: string; existingRating?: number } | null>(null);
 
@@ -480,7 +481,13 @@ export default function BusinessCircuitDetailScreen() {
             {!!circuit.description && <Text style={styles.circuitDesc}>{circuit.description}</Text>}
 
             <View style={styles.detailSection}>
-              <Text style={styles.detailSectionTitle}>Event details</Text>
+              <TouchableOpacity style={styles.detailToggle} onPress={() => setShowDetails(v => !v)} activeOpacity={0.7}>
+                <Text style={[styles.detailSectionTitle, { marginBottom: 0 }]}>Event details</Text>
+                <View style={showDetails ? { transform: [{ rotate: '180deg' }] } : undefined}>
+                  <Icon name="chevron-down" size={18} color={C.muted} />
+                </View>
+              </TouchableOpacity>
+              {showDetails && <View style={{ marginTop: 12 }}>
               {circuit.event_at && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Event date</Text>
@@ -547,6 +554,7 @@ export default function BusinessCircuitDetailScreen() {
                   </View>
                 </View>
               )}
+            </View>}
             </View>
 
             {/* Results */}
@@ -592,26 +600,31 @@ export default function BusinessCircuitDetailScreen() {
             {claimedCreators.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Creators</Text>
-                <View style={styles.creatorList}>
-                  {claimedCreators.map((c: any) => (
-                    <TouchableOpacity
-                      key={c.id}
-                      style={styles.creatorRow}
-                      onPress={() => navigation.navigate('CreatorPublicProfile', { creatorId: c.id })}
-                      activeOpacity={0.7}
-                    >
-                      {c.profile?.avatar_url ? (
-                        <Image source={{ uri: c.profile.avatar_url }} style={styles.creatorAvatar} />
-                      ) : (
-                        <View style={[styles.creatorAvatar, styles.creatorAvatarEmpty]}>
-                          <Icon name="person" size={18} color={C.muted2} />
-                        </View>
-                      )}
-                      <Text style={styles.creatorRowName}>{c.profile?.full_name ?? 'Creator'}</Text>
-                      <Icon name="chevron-right" size={14} color={C.muted2} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.creatorsScrollContent} style={{ marginBottom: 20 }}>
+                  {claimedCreators.map((c: any) => {
+                    const handle = c.tiktok_handle || c.instagram_handle;
+                    const name = c.profile?.full_name ?? 'Creator';
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={styles.creatorChip}
+                        onPress={() => navigation.navigate('CreatorPublicProfile', { creatorId: c.id })}
+                        activeOpacity={0.8}
+                      >
+                        {c.profile?.avatar_url ? (
+                          <Image source={{ uri: c.profile.avatar_url }} style={styles.creatorAvatar} />
+                        ) : (
+                          <View style={styles.creatorAvatarPlaceholder}>
+                            <Text style={styles.creatorAvatarInitial}>{name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                        )}
+                        <Text style={styles.creatorHandle} numberOfLines={1}>
+                          {handle ? `@${handle.replace('@', '')}` : name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </>
             )}
 
@@ -816,11 +829,16 @@ const styles = StyleSheet.create({
   voucherMetaLabel: { fontFamily: F.mono, fontSize: 10, color: C.muted2, letterSpacing: 1.2, textTransform: 'uppercase' },
   voucherMetaValue: { fontFamily: F.bodySemi, fontSize: 14, color: C.ink },
   voucherRefValue: { fontFamily: F.monoBold, fontSize: 15, color: C.ink, letterSpacing: 1.5 },
-  creatorList: { backgroundColor: C.card, borderRadius: R.lg, borderWidth: 1, borderColor: C.line, marginBottom: 20, overflow: 'hidden' },
-  creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line },
-  creatorAvatar: { width: 36, height: 36, borderRadius: 18 },
-  creatorAvatarEmpty: { backgroundColor: C.accentTint, alignItems: 'center', justifyContent: 'center' },
-  creatorRowName: { flex: 1, fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
+  detailToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  creatorsScrollContent: { paddingVertical: 4, gap: 14 },
+  creatorChip: { alignItems: 'center', width: 72 },
+  creatorAvatar: { width: 60, height: 60, borderRadius: 30, marginBottom: 6 },
+  creatorAvatarPlaceholder: {
+    width: 60, height: 60, borderRadius: 30, marginBottom: 6,
+    backgroundColor: '#EADFCF', alignItems: 'center', justifyContent: 'center',
+  },
+  creatorAvatarInitial: { fontFamily: F.display, fontWeight: '700', fontSize: 22, color: C.accent },
+  creatorHandle: { fontFamily: F.body, fontSize: 11, color: C.muted, textAlign: 'center', width: 72 },
   postCard: {
     backgroundColor: C.card, borderRadius: R.lg, padding: 16, marginBottom: 10,
     borderWidth: 1, borderColor: C.line, ...(S.card as any),
