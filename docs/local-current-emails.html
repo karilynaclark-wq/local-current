@@ -1,0 +1,351 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Local Current Emails</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap">
+<style>
+/* Layout: a review deck. Page chrome follows the viewer's theme; each email is a fixed-look cream card, like it would land in an inbox. */
+:root{
+  --bg:#F7EFE6; --fg:#1C1917; --muted:#8A7B70; --line:#E6DACB; --panel:#FFFDF9;
+  --accent:#C4664A; --accent-ink:#FFFFFF;
+  /* email card tokens, fixed in both themes */
+  --e-bg:#FBF6F0; --e-card:#FFFFFF; --e-fg:#1C1917; --e-muted:#7D6F64; --e-line:#EDE3D6; --e-soft:#F3E7DB;
+  --e-green:#DCEAD5; --e-green-ink:#3E6B3A; --e-gold:#F2E6C8; --e-gold-ink:#7A5A14;
+  --display:"Outfit",system-ui,sans-serif; --body:"DM Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#1E1915; --fg:#F3EBE2; --muted:#A89A8E; --line:#3A312B; --panel:#272120; --accent:#D97B5E; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#1E1915; --fg:#F3EBE2; --muted:#A89A8E; --line:#3A312B; --panel:#272120; --accent:#D97B5E; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);line-height:1.5;font-size:15px;padding-block:0 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+a{color:inherit}
+
+.top{max-width:1040px;margin:0 auto;padding-block:28px 8px;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);line-height:1}
+.brand small{display:block;font-size:10px;letter-spacing:.2em;color:var(--accent);font-weight:600}
+.brand b{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.wave{width:38px;height:18px}
+.top nav{display:flex;gap:18px;flex-wrap:wrap;font-weight:500}
+.top nav a{text-decoration:none;color:var(--muted)}
+.top nav a:hover{color:var(--fg)}
+
+.intro{max-width:1040px;margin:0 auto;padding-block:40px 24px}
+.intro h1{font-size:clamp(34px,6vw,56px);font-weight:800;letter-spacing:-.03em}
+.intro h1 em{color:var(--accent);font-style:normal}
+.intro p{max-width:62ch;font-size:17px;color:var(--muted);margin:14px 0 0}
+.rules{max-width:1040px;margin:0 auto 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.rules div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.rules b{display:block;font-family:var(--display);font-weight:600;margin-bottom:2px}
+.rules span{color:var(--muted);font-size:14px}
+
+section.group{max-width:1040px;margin:0 auto;padding-block:48px 0}
+.group h2{font-size:clamp(24px,3.4vw,32px);font-weight:700;letter-spacing:-.02em}
+.group > p{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:28px;margin-top:28px}
+
+.email{min-width:0;display:flex;flex-direction:column;gap:12px}
+.meta{display:flex;flex-direction:column;gap:4px}
+.meta .num{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.meta h3{font-size:19px;font-weight:600}
+.meta .when{color:var(--muted);font-size:14px}
+.lines{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:14px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;min-width:0}
+.lines dt{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding-top:3px}
+.lines dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.lines dd.sub{font-weight:600}
+
+/* the email itself */
+.frame{background:var(--e-bg);border:1px solid var(--line);border-radius:18px;padding:28px 20px;color:var(--e-fg);font-family:var(--body);font-size:15px;line-height:1.55}
+.frame .inner{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.frame .head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--e-line)}
+.frame .head .brand small{color:#C4664A}
+.frame .head .brand b{font-size:18px;color:var(--e-fg)}
+.frame .head .tag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--e-muted)}
+.frame p{margin:0}
+.frame .hi{font-family:var(--display);font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--e-fg)}
+.frame ol,.frame ul{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.frame ol li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start}
+.frame ol li i{font-style:normal;font-family:var(--display);font-weight:700;color:#FFF;background:#C4664A;border-radius:50%;width:26px;height:26px;display:grid;place-items:center;font-size:13px}
+.frame ul li{padding-left:18px;position:relative}
+.frame ul li::before{content:"";position:absolute;left:4px;top:.6em;width:6px;height:6px;border-radius:50%;background:#C4664A}
+.frame .card{background:var(--e-card);border:1px solid var(--e-line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.frame .card .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--e-muted)}
+.frame .card .t{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:-.01em}
+.frame .card .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--e-muted)}
+.pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--e-green);color:var(--e-green-ink)}
+.pill.gold{background:var(--e-gold);color:var(--e-gold-ink)}
+.code{background:var(--e-card);border:2px dashed #C4664A;border-radius:14px;padding:14px;text-align:center}
+.code .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--e-muted)}
+.code .v{font-family:var(--display);font-size:28px;font-weight:800;letter-spacing:.06em;color:#C4664A}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}
+.stats div{background:var(--e-card);border:1px solid var(--e-line);border-radius:12px;padding:12px 10px;text-align:center}
+.stats b{display:block;font-family:var(--display);font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;color:var(--e-muted)}
+.posts{display:flex;flex-direction:column;gap:6px}
+.posts div{display:flex;justify-content:space-between;gap:10px;background:var(--e-card);border:1px solid var(--e-line);border-radius:10px;padding:9px 12px;font-size:14px;flex-wrap:wrap}
+.posts div span:last-child{color:#C4664A;font-weight:600}
+.btn{align-self:flex-start;display:inline-block;background:#C4664A;color:#FFF;text-decoration:none;font-family:var(--display);font-weight:600;font-size:16px;padding:13px 24px;border-radius:999px}
+.frame .foot{padding-top:16px;border-top:1px solid var(--e-line);font-size:12px;color:var(--e-muted);line-height:1.5}
+.frame .foot a{color:var(--e-muted)}
+.frame .sign{color:var(--e-fg)}
+.frame .fine{font-size:13px;color:var(--e-muted)}
+.frame strong{font-weight:600}
+.frame .v-link{color:#C4664A;font-weight:600}
+.admin{max-width:1040px;margin:48px auto 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;color:var(--muted);font-size:14px}
+.admin b{color:var(--fg);font-family:var(--display);font-weight:600}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="lc-wave" viewBox="0 0 44 20"><circle cx="3" cy="11" r="3" fill="#1C1917"/><path d="M7 11 C9 3 12 3 14 9 C16 15 19 15 21 9 C23 3 26 3 28 9 C30 15 33 15 35 9" fill="none" stroke="#C4664A" stroke-width="3" stroke-linecap="round"/><circle cx="41" cy="9" r="3" fill="#C4664A"/></symbol></svg>
+
+<header class="top">
+  <div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div>
+  <nav><a href="#creators-onboarding">Creator onboarding</a><a href="#creators-events">Creator events</a><a href="#businesses">Businesses</a></nav>
+</header>
+
+<div class="intro">
+  <h1>Emails that sound like <em>a friend wrote them.</em></h1>
+  <p>Twelve customer-facing emails, redrafted and styled for Local Current. Every one is short, says what to do next, and has one orange button. Placeholders like {first_name} fill in when the app sends.</p>
+</div>
+<div class="rules">
+  <div><b>Sender</b><span>Local Current &lt;hello@localcurrentapp.com&gt;. Replies land in the same inbox.</span></div>
+  <div><b>One button per email</b><span>Terracotta pill, same shape as the "Get the app" button on the site.</span></div>
+  <div><b>Footer</b><span>Alerts and recaps carry an email preferences link. Account and onboarding emails do not.</span></div>
+  <div><b>Build order</b><span>Onboarding first. Results emails wait on TikTok and Instagram approving the app.</span></div>
+</div>
+
+<!-- ===================== CREATORS: ONBOARDING ===================== -->
+<section class="group" id="creators-onboarding">
+  <h2>Creators: onboarding</h2>
+  <p>One email gets a creator from signup to their first claim.</p>
+  <div class="grid">
+
+  <article class="email">
+    <div class="meta"><span class="num">01 · Creator</span><h3>Welcome + how it works</h3><span class="when">Sent right after signup (account connected, auto-approved)</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">You're in! Here's how to get your first tickets</dd><dt>Preview</dt><dd>Free tickets to Chicago events. Claim, go, post.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">Chicago</span></div>
+      <p class="hi">Welcome, {first_name}. You're in.</p>
+      <p>Chicago businesses give creators like you 2 free tickets to their events, one for you and one for a friend. All they ask for is an honest video. Here's how it works:</p>
+      <ol>
+        <li><i>1</i><span><strong>Claim.</strong> When an event opens up to you, tap Claim tickets. You'll get a code for 2 free tickets.</span></li>
+        <li><i>2</i><span><strong>Grab your tickets.</strong> Use the code on the business's ticket site, then tap "I got my tickets" in the app.</span></li>
+        <li><i>3</i><span><strong>Go.</strong> Bring a friend and have fun.</span></li>
+        <li><i>4</i><span><strong>Post.</strong> Within 48 hours, share an honest video on TikTok or Instagram, tag the business, and add #localcurrentapp.</span></li>
+      </ol>
+      <p class="fine">One thing to know: bigger accounts see each event first, and every 24 hours it opens to the next group. Turn on notifications so you catch yours.</p>
+      <a class="btn" href="#">Browse events</a>
+      <div class="foot">Questions? Just reply to this email. A real person reads every one.</div>
+    </div></div>
+  </article>
+
+  </div>
+</section>
+
+<!-- ===================== CREATORS: EVENTS ===================== -->
+<section class="group" id="creators-events">
+  <h2>Creators: events</h2>
+  <p>Three emails carry each event from alert to post, plus a monthly look back.</p>
+  <div class="grid">
+
+  <article class="email">
+    <div class="meta"><span class="num">03 · Creator</span><h3>New event</h3><span class="when">Sent when an event opens to their tier, alongside the push</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">Free tickets: {event}</dd><dt>Preview</dt><dd>{business} is giving 2 tickets to {spots} creators. Want in?</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">New event</span></div>
+      <p class="hi">Hi {first_name}, want to go?</p>
+      <p><strong>{business}</strong> wants to give you 2 free tickets to <strong>{event}</strong>. One for you, one for a friend.</p>
+      <div class="card"><span class="eyebrow">{business} · {neighborhood}</span><span class="t">{event}</span><div class="row"><span>{event_description}</span><span class="pill">{spots} spots</span></div></div>
+      <p>Only {spots} creators get in, and it's first come, first served. If you want it, grab it.</p>
+      <a class="btn" href="#">Claim tickets</a>
+      <div class="foot">You're getting this because events are open to your tier. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">04 · Creator</span><h3>Claimed + posting guidelines</h3><span class="when">Sent right after they claim</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">You're going to {event}! Your code is inside</dd><dt>Preview</dt><dd>Your code: {code}. Here's what to do next.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">You're in</span></div>
+      <p class="hi">You've got tickets, {first_name}.</p>
+      <p>You're going to <strong>{event}</strong>. Here's your code:</p>
+      <div class="code"><span class="eyebrow">Your code</span><div class="v">{code}</div></div>
+      <p>Use it at checkout on <a class="v-link" href="#">{business}'s ticket site</a>, then tap "I got my tickets" in the app so we know you're set.</p>
+      <p><strong>A few things for your post</strong></p>
+      <ul>
+        <li>Post within 48 hours of the event.</li>
+        <li>Tag {business_handle}.</li>
+        <li>15 to 60 seconds is the sweet spot: the place, the vibe, your honest take.</li>
+        <li>Add <strong>#LocalCurrentApp</strong> to your caption. This is how we know your post went live. If you don't include it, we and the business won't see it!</li>
+      </ul>
+      <p class="fine">Can't make it after all? Release your tickets in the app so another creator can go. No-shows and missing posts can get an account paused or banned (a real local business saved tickets for you, and no-shows have a real impact on them!), so please do give us a heads up.</p>
+      <a class="btn" href="#">View in the app</a>
+      <div class="foot">Questions? Just reply to this email. A real person reads every one.</div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">04b · Creator</span><h3>Review the business</h3><span class="when">Sent 24 hours after their post goes live, if they haven't reviewed yet. <strong>Needs building:</strong> the app doesn't have creator reviews of businesses yet.</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">How was {event}?</dd><dt>Preview</dt><dd>Leave {business} a quick review. It takes 10 seconds.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">Review</span></div>
+      <p class="hi">How was it, {first_name}?</p>
+      <p>Thanks for posting about <strong>{event}</strong>! Your video is live, and {business} can see it.</p>
+      <p>How was your experience with {business}? Please rate them in the app.</p>
+      <p>Your review shows up <strong>anonymously</strong> on {business}'s profile and helps other creators decide who to work with.</p>
+      <a class="btn" href="#">Review {business}</a>
+      <p class="fine">This review is just about {business} and the event, not the Local Current app. Got app feedback? Reply to this email instead.</p>
+      <div class="foot">Questions? Just reply to this email. A real person reads every one.</div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">05 · Creator · Saved for later</span><h3>Monthly rundown</h3><span class="when"><strong>Not building yet.</strong> Sent the 1st of each month. No activity? Skip the stats and lead with what they missed.</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">Your {month} on Local Current</dd><dt>Preview</dt><dd>{views} views across {post_count} posts. Not bad.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">{month} recap</span></div>
+      <p class="hi">Your {month}, {first_name}.</p>
+      <div class="stats"><div><b>{events_attended}</b><span>events</span></div><div><b>{post_count}</b><span>posts</span></div><div><b>{views}</b><span>views</span></div><div><b>{likes}</b><span>likes</span></div></div>
+      <p>Your top post was <strong>{top_post_event}</strong> with {top_post_views} views. Nice work.</p>
+      <p><strong>Events you could have claimed:</strong> {events_available} events from {business_count} businesses were open to you, including {example_events}. Turn on notifications so next month's don't slip by.</p>
+      <a class="btn" href="#">See what's open now</a>
+      <div class="foot">You're getting this because you have a Local Current account. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  </div>
+</section>
+
+<!-- ===================== BUSINESSES ===================== -->
+<section class="group" id="businesses">
+  <h2>Businesses</h2>
+  <p>Seven emails take a business from signup to proof it worked.</p>
+  <div class="grid">
+
+  <article class="email">
+    <div class="meta"><span class="num">06 · Business</span><h3>Onboarding</h3><span class="when">Sent right after signup</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">Welcome to Local Current</dd><dt>Preview</dt><dd>Your first event takes about 3 minutes to post.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">Chicago</span></div>
+      <p class="hi">Welcome, {first_name}.</p>
+      <p>Glad you're here.</p>
+      <p>Influencer marketing has gotten complicated and expensive. On top of running your business, you're expected to be an expert in finding creators, negotiating, and tracking results. After 7 years in the space, I built Local Current to make it seamless.</p>
+      <p>Here's how it works:</p>
+      <ol>
+        <li><i>1</i><span><strong>Post an event.</strong> Add the date, your ticket link, creator criteria, and a redemption code.</span></li>
+        <li><i>2</i><span><strong>Creators claim.</strong> Verified Chicago creators grab your code and get their tickets.</span></li>
+        <li><i>3</i><span><strong>They post.</strong> Each one shares an honest video on TikTok or Instagram within 48 hours.</span></li>
+        <li><i>4</i><span><strong>Track performance in the app, automatically.</strong> See how many people saw and engaged with each video.</span></li>
+      </ol>
+      <p>You only pay in the tickets you give away. Ready?</p>
+      <a class="btn" href="#">Post your first event</a>
+      <p class="sign">Talk soon,<br>Kari, founder of Local Current</p>
+      <div class="foot">Questions? Just reply to this email. A real person reads every one.</div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">07 · Business</span><h3>Your event is live</h3><span class="when">Sent right after they post an event</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">{event} is live!</dd><dt>Preview</dt><dd>Here's what happens next.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">Live</span></div>
+      <p class="hi">{event} is live.</p>
+      <p>Hi {first_name}, here's what to expect:</p>
+      <ul>
+        <li><strong>Today:</strong> creators with the biggest followings ({top_tier}+) see it first.</li>
+        <li><strong>Every 24 hours:</strong> it opens to the next group, down to your minimum ({min_followers}).</li>
+        <li><strong>As creators claim:</strong> we'll email you who's coming.</li>
+        <li><strong>After the event:</strong> creators post within 48 hours, and we'll send you their videos and results.</li>
+      </ul>
+      <div class="card"><span class="eyebrow">Your event</span><span class="t">{event}</span><div class="row"><span>Code {code_summary}</span><span class="pill">{spots} creators × 2 tickets</span></div></div>
+      <p class="fine">No need to keep refreshing the app. We'll keep you posted.</p>
+      <a class="btn" href="#">View your event</a>
+      <div class="foot">Questions? Just reply to this email. A real person reads every one.</div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">08 · Business · Saved for later</span><h3>Big creator joined</h3><span class="when"><strong>Not building yet.</strong> Sent when a 50K+ creator is approved. Only to businesses with no live event, at most once a week.</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">A creator with {followers} followers just joined</dd><dt>Preview</dt><dd>Post an event to get on their radar.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">New creator</span></div>
+      <p class="hi">Quick heads up, {first_name}.</p>
+      <div class="card"><span class="eyebrow">Just joined</span><span class="t">@{handle}</span><div class="row"><span>{followers} on {platform} · posts about {niche}</span></div></div>
+      <p>Creators this size see every new event first. Post one now and you'll be on their radar.</p>
+      <a class="btn" href="#">Post an event</a>
+      <div class="foot">You're getting this because you have no live event right now. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">09 · Business</span><h3>Creator claimed</h3><span class="when">Sent on each claim</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">@{handle} is coming to {event}</dd><dt>Preview</dt><dd>{claimed} of {spots} spots claimed.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">New claim</span></div>
+      <p class="hi">Someone's coming, {first_name}.</p>
+      <p><strong>{creator_name}</strong> just claimed tickets to <strong>{event}</strong>.</p>
+      <div class="card"><span class="eyebrow">Creator</span><span class="t">@{handle} {verified_badge}</span><div class="row"><span>{followers} followers on {platform}</span><span class="pill gold">{claimed} of {spots} claimed</span></div></div>
+      <a class="btn" href="#">See who's coming</a>
+      <div class="foot">You're getting this because you have a live event. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">10 · Business</span><h3>Video posted</h3><span class="when">Sent when a creator submits their post</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">@{handle} posted about {event}</dd><dt>Preview</dt><dd>Go watch it and show some love.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">New post</span></div>
+      <p class="hi">It's up, {first_name}.</p>
+      <p><strong>@{handle}</strong> just posted about <strong>{event}</strong>. Go check it out!</p>
+      <a class="btn" href="#">Watch the video</a>
+      <p class="fine">A like or a share from you helps it reach more people. We'll send you the numbers in 24 hours.</p>
+      <div class="foot">You're getting this because a creator posted about your event. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">10b · Business</span><h3>Review the creator</h3><span class="when">Sent 24 hours after a post goes live, if they haven't rated the creator yet (same timing as the existing push).</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">How did @{handle} do?</dd><dt>Preview</dt><dd>How was working with them on {event}? It takes 10 seconds.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">Review</span></div>
+      <p class="hi">How did @{handle} do?</p>
+      <p>@{handle} posted about <strong>{event}</strong>. How was your experience working with them? Please rate them in the app.</p>
+      <p>Your rating shows up on their profile, and helps other businesses know who to work with.</p>
+      <a class="btn" href="#">Rate @{handle}</a>
+      <p class="fine">This rating is just about @{handle} and working with them, not the Local Current app. Got app feedback? Reply to this email instead.</p>
+      <div class="foot">You're getting this because a creator posted about your event. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">11 · Business</span><h3>24-hour results</h3><span class="when">Sent 24 hours after a post goes live</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">@{handle}'s video: {views} views in 24 hours</dd><dt>Preview</dt><dd>Early numbers for {event}.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">Day 1</span></div>
+      <p class="hi">First 24 hours, {first_name}.</p>
+      <p>Here's how @{handle}'s video for <strong>{event}</strong> is doing so far:</p>
+      <div class="stats"><div><b>{views}</b><span>views</span></div><div><b>{engagements}</b><span>engagements</span></div></div>
+      <a class="btn" href="#">View the post</a>
+      <div class="foot">You're getting this because a creator posted about your event. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  <article class="email">
+    <div class="meta"><span class="num">13 · Business</span><h3>Monthly recap</h3><span class="when">Sent the 1st of each month</span></div>
+    <dl class="lines"><dt>Subject</dt><dd class="sub">Your {month} on Local Current: {total_views} views</dd><dt>Preview</dt><dd>{events} events, {creators} creators, {posts} posts.</dd></dl>
+    <div class="frame"><div class="inner">
+      <div class="head"><div class="brand"><svg class="wave" aria-hidden="true"><use href="#lc-wave"/></svg><div><small>LOCAL</small><b>Current</b></div></div><span class="tag">{month} recap</span></div>
+      <p class="hi">Your {month}, {first_name}.</p>
+      <div class="stats"><div><b>{events}</b><span>events</span></div><div><b>{creators}</b><span>creators</span></div><div><b>{posts}</b><span>posts</span></div><div><b>{total_views}</b><span>views</span></div></div>
+      <p>Top post: <strong>@{top_handle}</strong> with {top_views} views.</p>
+      <p>Creators are already looking for what's next. Got something coming up?</p>
+      <a class="btn" href="#">Post an event for {next_month}</a>
+      <div class="foot">You're getting this because you have a Local Current account. <a href="#">Email preferences</a></div>
+    </div></div>
+  </article>
+
+  </div>
+</section>
+
+<div class="admin"><b>Admin emails (14 to 16)</b> stay plain text on purpose: new signup, problem reported, and the Monday "app at a glance" table. No branding, just the facts and a link. They're unchanged from the doc.</div>
+
+</body></html>

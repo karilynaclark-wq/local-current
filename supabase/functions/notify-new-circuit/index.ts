@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { layout, hi, p, b, esc, btn, card, recipient, once, send, prefsFooter } from '../_shared/email.ts';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const DAY = 86_400_000;
@@ -73,9 +74,9 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
   const claimedIds = new Set((claimed ?? []).map((r: any) => r.creator_id));
 
   const niches: string[] = Array.isArray(circuit.eligibility_niches) ? circuit.eligibility_niches : [];
-  const tokens = (creators as any[])
+  const matching = (creators as any[])
     .filter((c) => {
-      if (!c.profile?.push_token || claimedIds.has(c.id)) return false;
+      if (claimedIds.has(c.id)) return false;
       const n = bestCount(c, verified, circuit.required_platform ?? 'either');
       if (n == null || n < from || (below != null && n >= below)) return false;
       if (niches.length > 0) {
@@ -83,9 +84,29 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
         if (!niches.some((x) => mine.includes(x))) return false;
       }
       return true;
-    })
-    .map((c) => c.profile.push_token as string)
-    .filter((t) => t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['));
+    });
+  const isToken = (t?: string | null) => !!t && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['));
+  const tokens = matching.map((c) => c.profile?.push_token).filter(isToken) as string[];
+
+  // Email 03: creators with push off get the alert by email instead.
+  for (const c of matching.filter((c) => !isToken(c.profile?.push_token))) {
+    try {
+      if (!(await once(db, `03:${circuit.id}:${c.id}`))) continue;
+      const r = await recipient(db, c.profile_id, true);
+      if (!r) continue;
+      const biz = circuit.business?.business_name || 'A local business';
+      const spots = circuit.max_redemptions ?? 0;
+      await send(r.email, `Free tickets: ${circuit.title}`, layout({
+        tag: 'New event', preview: `${biz} is giving 2 tickets to ${spots} creators. Want in?`,
+        body: hi(`Hi ${esc(r.first)}, want to go?`) +
+          p(`${b(biz)} wants to give you 2 free tickets to ${b(circuit.title)}. One for you, one for a friend.`) +
+          card(esc(biz), esc(circuit.title), esc(circuit.description ?? ''), `${spots} spots`) +
+          p(`Only ${spots} creators get in, and it's first come, first served. If you want it, grab it.`) +
+          btn('Claim tickets'),
+        footer: await prefsFooter("You're getting this because events are open to your tier.", c.profile_id),
+      }));
+    } catch (e) { console.error('email 03', e); }
+  }
   if (!tokens.length) return 0;
 
   const businessName = circuit.business?.business_name || 'A local business';
@@ -113,7 +134,7 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
 }
 
 const CIRCUIT_FIELDS =
-  'id, title, event_at, created_at, is_active, min_followers, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
+  'id, title, description, max_redemptions, event_at, created_at, is_active, min_followers, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
