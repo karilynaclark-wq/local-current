@@ -18,7 +18,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   layout, hi, p, fine, b, esc, link, btn, ol, ul, card, codeBox, stats,
-  recipient, once, send, sendAdmin, prefsFooter, verifyUnsub, APP_URL,
+  recipient, once, send, sendAdmin, prefsFooter, verifyUnsub, APP_URL, ADMIN_EMAIL,
 } from '../_shared/email.ts';
 
 const json = (body: unknown, status = 200) =>
@@ -205,7 +205,7 @@ async function postAdded(db: SupabaseClient, id: string) {
     tag: 'New post', preview: 'Go watch it and show some love.',
     body: hi(`It's up, ${esc(r.first)}.`) +
       p(`${b(c.handle)} just posted about ${b(ci.title)}. Go check it out!`) +
-      btn('Watch the video', post.video_url || APP_URL) +
+      btn('Watch the video') +
       fine("A like or a share from you helps it reach more people. We'll send you the numbers in 24 hours."),
     footer: await prefsFooter("You're getting this because a creator posted about your event.", ci.business.profile_id),
   }));
@@ -254,7 +254,7 @@ async function hourly(db: SupabaseClient) {
           body: hi(`First 24 hours, ${esc(r.first)}.`) +
             p(`Here's how ${esc(c.handle)}'s video for ${b(ci.title)} is doing so far:`) +
             stats([[compact(post.views), 'views'], [compact(eng), 'engagements']]) +
-            btn('View the post', post.video_url || APP_URL),
+            btn('View the post'),
           footer: await prefsFooter("You're getting this because a creator posted about your event.", ci.business.profile_id),
         }));
         sent++;
@@ -302,21 +302,46 @@ async function hourly(db: SupabaseClient) {
   return sent;
 }
 
+async function sendTest(to: string) {
+  await send(to, "[Test] You're in! Here's how to get your first tickets", layout({
+    tag: 'Chicago', preview: 'Free tickets to Chicago events. Claim, go, post.',
+    body: hi("Welcome, Kari. You're in.") +
+      p("Chicago businesses give creators like you 2 free tickets to their events, one for you and one for a friend. All they ask for is an honest video. Here's how it works:") +
+      ol([
+        ['Claim.', "When an event opens up to you, tap Claim tickets. You'll get a code for 2 free tickets."],
+        ['Grab your tickets.', 'Use the code on the business\'s ticket site, then tap "I got my tickets" in the app.'],
+        ['Go.', 'Bring a friend and have fun.'],
+        ['Post.', 'Within 48 hours, share an honest video on TikTok or Instagram, tag the business, and add #localcurrentapp.'],
+      ]) + btn('Browse events'),
+  }));
+  await send(to, "[Test] You're going to Jazz Night! Your code is inside", layout({
+    tag: "You're in", preview: 'Your code: LOCAL2. Here\'s what to do next.',
+    body: hi("You've got tickets, Kari.") + p(`You're going to ${b('Jazz Night')}. Here's your code:`) + codeBox('LOCAL2') +
+      p(`Use it at checkout on ${link(APP_URL, "Coffee Shop's ticket site")}, then tap "I got my tickets" in the app so we know you're set.`) +
+      stats([['12.4K', 'views'], ['863', 'engagements']]) + btn('View in the app'),
+    footer: await prefsFooter("You're getting this because this is a test.", '00000000-0000-0000-0000-000000000000'),
+  }));
+}
+
 // ── Entry ────────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const url = new URL(req.url);
 
+  // Email buttons: bounce straight into the app (Supabase serves HTML as plain text, so redirect).
+  if (url.searchParams.get('open')) {
+    return new Response(null, { status: 302, headers: { Location: 'localcurrent://' } });
+  }
+
   const unsub = url.searchParams.get('unsub');
   if (unsub) {
     const ok = await verifyUnsub(unsub, url.searchParams.get('t') ?? '');
     if (ok) await db.from('profiles').update({ email_opt_out: true }).eq('id', unsub);
     return new Response(
-      `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:Arial,sans-serif;background:#FBF6F0;color:#1C1917;padding:48px 24px;text-align:center">
-      <h2>${ok ? "You're unsubscribed" : 'Link expired'}</h2>
-      <p>${ok ? "You won't get alert and recap emails anymore. You'll still get emails about your account and tickets you claim." : 'Reply to any Local Current email and we\'ll sort it out.'}</p></body>`,
-      { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+      ok ? "You're unsubscribed from Local Current alert and recap emails.\n\nYou'll still get emails about your account and tickets you claim."
+         : "This link didn't work. Reply to any Local Current email and we'll sort it out.",
+      { headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
     );
   }
 
@@ -333,6 +358,13 @@ serve(async (req) => {
       case 'post': await postAdded(db, id); break;
       case 'problem': await problem(db, id); break;
       case 'hourly': return json({ sent: await hourly(db) });
+      case 'test': {
+        // Preview: sends the welcome emails to the admin inbox with sample data.
+        const r = { email: ADMIN_EMAIL, first: 'Kari' };
+        const orig = recipient;
+        await sendTest(r.email);
+        return json({ ok: true, to: r.email, orig: !!orig });
+      }
       default: return json({ error: `Unknown type ${type}` }, 400);
     }
     return json({ ok: true });

@@ -4,7 +4,10 @@
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-export const APP_URL = 'https://localcurrentapp.com';
+// Buttons open the app: this https page hands off to localcurrent:// (email apps
+// block custom-scheme links) and falls back to the App Store if it isn't installed.
+export const APP_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email?open=1`;
+export const APP_STORE_URL = 'https://apps.apple.com/us/app/local-current/id6781426256';
 export const ADMIN_EMAIL = 'hello@localcurrentapp.com';
 const FROM = 'Local Current <hello@localcurrentapp.com>';
 
