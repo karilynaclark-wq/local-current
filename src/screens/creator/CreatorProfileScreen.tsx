@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
 import PostStats, { hasPostStats } from '../../components/PostStats';
 import CreatorInsights from '../../components/CreatorInsights';
+import { ReviewsSection } from '../../components/Reviews';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 import {
   getConnections, connectTikTok, syncTikTok, disconnectTikTok,
@@ -28,6 +29,7 @@ const PLATFORM_API: Record<Platform, {
 };
 
 interface CreatorData {
+  id?: string;
   ai_summary?: any;
   full_name: string;
   city: string;
@@ -179,6 +181,7 @@ export default function CreatorProfileScreen() {
         : 0;
 
       setCreator({
+        id: cr.id,
         ai_summary: cr.ai_summary ?? null,
         full_name: prof?.full_name ?? user.email?.split('@')[0] ?? 'Creator',
         city: cr.city ?? '',
@@ -333,6 +336,7 @@ export default function CreatorProfileScreen() {
               .map(c => ({ platform: c.platform as any, count: c.follower_count, verified: true, url: c.profile_url }))}
             summary={(creator as any)?.ai_summary}
           />
+          <ReviewsSection kind="creator" id={(creator as any)?.id} />
 
           {needsAccountAttention && (
             <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.manageLink} activeOpacity={0.7}>

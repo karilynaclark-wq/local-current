@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { C, F, R, S } from '../../theme';
 import PostStats, { hasPostStats } from '../../components/PostStats';
 import CreatorInsights, { type FollowerCount } from '../../components/CreatorInsights';
+import { ReviewsSection } from '../../components/Reviews';
 import { Icon, Mark, SocialIcon } from '../../components/Icon';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
@@ -206,6 +207,7 @@ export default function CreatorPublicProfileScreen() {
             counts={followerCounts}
             summary={(creator as any)?.ai_summary}
           />
+          <ReviewsSection kind="creator" id={creatorId} />
         </View>
 
         <View style={styles.tabBar}>

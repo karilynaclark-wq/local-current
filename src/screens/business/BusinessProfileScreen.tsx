@@ -100,24 +100,18 @@ export default function BusinessProfileScreen() {
         };
       });
 
-      if (redemptionIds.length > 0) {
-        const { data: feedbackRows } = await supabase
-          .from('redemption_feedback')
-          .select('rating, public_feedback, created_at, redemption_id')
-          .in('redemption_id', redemptionIds)
-          .order('created_at', { ascending: false });
-
-        setReviews(
-          (feedbackRows ?? [])
-            .filter((f: any) => f.rating || f.public_feedback)
-            .map((f: any) => ({
-              ...f,
-              circuit_title: redemptionMetaMap[f.redemption_id]?.title ?? '',
-              creator_id: redemptionMetaMap[f.redemption_id]?.creatorId ?? null,
-              creator_name: redemptionMetaMap[f.redemption_id]?.creatorName ?? null,
-            }))
-        );
-      }
+      // Creator reviews (anonymous ones come back without a name)
+      const { data: reviewRows } = await supabase.rpc('business_reviews', { p_business_id: biz.id });
+      setReviews(
+        ((reviewRows as any[]) ?? []).map(r => ({
+          rating: r.rating,
+          public_feedback: r.note,
+          created_at: r.rated_at,
+          circuit_title: r.event_title ?? '',
+          creator_id: null,
+          creator_name: r.reviewer ?? 'Anonymous creator',
+        }))
+      );
     }
     } catch (e: any) {
       setLoadError(true);
@@ -237,7 +231,7 @@ export default function BusinessProfileScreen() {
                       <TouchableOpacity onPress={() => navigation.navigate('CreatorPublicProfile', { creatorId: r.creator_id })} activeOpacity={0.7}>
                         <Text style={styles.reviewCreator}>{r.creator_name ?? 'Creator'}</Text>
                       </TouchableOpacity>
-                    ) : null}
+                    ) : <Text style={styles.reviewCreator}>{r.creator_name}</Text>}
                     <Text style={styles.reviewMeta}>
                       {r.circuit_title ? `${r.circuit_title} · ` : ''}{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                     </Text>

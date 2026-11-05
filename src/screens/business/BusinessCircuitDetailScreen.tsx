@@ -12,135 +12,7 @@ import { minFollowersLabel } from '../../lib/eligibility';
 import { C, F, R, S } from '../../theme';
 import PostStats, { hasPostStats } from '../../components/PostStats';
 import { Icon, SocialIcon } from '../../components/Icon';
-
-// ─── Rating modal ─────────────────────────────────────────────────────────────
-interface RatingModalProps {
-  visible: boolean;
-  redemptionId: string;
-  circuitTitle: string;
-  initialRating?: number;
-  onClose: () => void;
-  onSaved: () => void;
-}
-
-function RatingModal({ visible, redemptionId, circuitTitle, initialRating, onClose, onSaved }: RatingModalProps) {
-  const [rating, setRating] = useState(initialRating ?? 0);
-  useEffect(() => { setRating(initialRating ?? 0); }, [initialRating]);
-  const [publicReview, setPublicReview] = useState('');
-  const [privateReview, setPrivateReview] = useState('');
-  const [appFeedback, setAppFeedback] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    if (rating === 0) {
-      Alert.alert('Rating required', 'Please select a star rating before saving.');
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase.from('redemptions').update({
-      business_rating: rating,
-      business_public_review: publicReview || null,
-      business_private_review: privateReview || null,
-      business_app_feedback: appFeedback || null,
-      business_rated_at: new Date().toISOString(),
-    }).eq('id', redemptionId);
-    setSaving(false);
-    if (error) { Alert.alert('Error', error.message); return; }
-    trackEvent('creator_rated', { rating });
-    onSaved();
-    onClose();
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={rStyles.overlay}>
-          <View style={rStyles.sheet}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={rStyles.title}>Rate this creator</Text>
-              <Text style={rStyles.sub}>For: {circuitTitle}</Text>
-
-              {/* Stars */}
-              <Text style={rStyles.label}>Overall rating</Text>
-              <View style={rStyles.starsRow}>
-                {[1, 2, 3, 4, 5].map(n => (
-                  <TouchableOpacity key={n} onPress={() => setRating(n)} activeOpacity={0.7}>
-                    <Icon name={n <= rating ? 'star-fill' : 'star'} size={32} color="#C39A3A" />
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={rStyles.label}>Public review <Text style={rStyles.optional}>(shown on creator's profile)</Text></Text>
-              <TextInput
-                style={rStyles.input}
-                value={publicReview}
-                onChangeText={setPublicReview}
-                placeholder="What was great about working with this creator?"
-                placeholderTextColor={C.muted2}
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={rStyles.label}>Private note <Text style={rStyles.optional}>(only you'll see this)</Text></Text>
-              <TextInput
-                style={rStyles.input}
-                value={privateReview}
-                onChangeText={setPrivateReview}
-                placeholder="Anything you'd note for yourself about this collaboration?"
-                placeholderTextColor={C.muted2}
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={rStyles.label}>App feedback <Text style={rStyles.optional}>(sent to Current team)</Text></Text>
-              <TextInput
-                style={rStyles.input}
-                value={appFeedback}
-                onChangeText={setAppFeedback}
-                placeholder="How was your experience using Current for this?"
-                placeholderTextColor={C.muted2}
-                multiline
-                numberOfLines={3}
-              />
-
-              <TouchableOpacity style={[rStyles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-                <Text style={rStyles.saveBtnText}>{saving ? 'Saving…' : 'Save rating'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={rStyles.cancelBtn} onPress={onClose}>
-                <Text style={rStyles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-const rStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(36,29,23,0.55)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 28, paddingBottom: 40, maxHeight: '90%',
-  },
-  title: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 22, color: C.ink, marginBottom: 4 },
-  sub: { fontFamily: F.body, fontSize: 14, color: C.muted, marginBottom: 24 },
-  label: { fontFamily: F.bodySemi, fontSize: 13.5, color: C.ink, marginBottom: 8, marginTop: 16 },
-  optional: { fontFamily: F.body, fontSize: 12, color: C.muted2 },
-  starsRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
-  input: {
-    fontFamily: F.body, borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md,
-    padding: 13, fontSize: 14, color: C.ink, backgroundColor: C.paper,
-    textAlignVertical: 'top', minHeight: 80,
-  },
-  saveBtn: {
-    backgroundColor: C.accent, borderRadius: R.btn,
-    padding: 16, alignItems: 'center', marginTop: 24, ...(S.button as any),
-  },
-  saveBtnText: { fontFamily: F.display, fontWeight: '700', fontSize: 16, color: '#fff' },
-  cancelBtn: { alignItems: 'center', marginTop: 14 },
-  cancelBtnText: { fontFamily: F.body, color: C.muted2, fontSize: 14 },
-} as any);
+import { RatingModal } from '../../components/Reviews';
 
 // ─── Extend expiry modal ──────────────────────────────────────────────────────
 interface ExtendModalProps {
@@ -242,6 +114,8 @@ interface RedemptionWithRating {
   creator_id: string | null;
   business_rating: number | null;
   business_rated_at: string | null;
+  business_public_review?: string | null;
+  business_review_anonymous?: boolean | null;
 }
 
 export default function BusinessCircuitDetailScreen() {
@@ -263,7 +137,7 @@ export default function BusinessCircuitDetailScreen() {
   const [showVoucherPreview, setShowVoucherPreview] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [creatorListModal, setCreatorListModal] = useState<{ title: string; creators: any[] } | null>(null);
-  const [ratingTarget, setRatingTarget] = useState<{ redemptionId: string; existingRating?: number } | null>(null);
+  const [ratingTarget, setRatingTarget] = useState<{ redemptionId: string; name: string; rating?: number | null; note?: string | null; anonymous?: boolean | null } | null>(null);
 
   // Map postId → redemptionId so we can rate from a post card
   const [postRedemptionMap, setPostRedemptionMap] = useState<Record<string, string>>({});
@@ -290,7 +164,7 @@ export default function BusinessCircuitDetailScreen() {
 
     const claimsRes = await supabase
       .from('redemptions')
-      .select('id, status, creator_id, business_rating, business_rated_at, requested_at, claimed_at, access_details, code')
+      .select('id, status, creator_id, business_rating, business_rated_at, business_public_review, business_review_anonymous, requested_at, claimed_at, access_details, code')
       .eq('circuit_id', route.params.circuit.id);
     const redemptionData: RedemptionWithRating[] = claimsRes.data ?? [];
     const redemptionIds = redemptionData.map((r: any) => r.id);
@@ -436,7 +310,12 @@ export default function BusinessCircuitDetailScreen() {
         )}
         {/* Rating row */}
         {redemptionId && (
-          <TouchableOpacity style={styles.rateBtn} onPress={() => setRatingTarget({ redemptionId, existingRating: existingRating ?? undefined })} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.rateBtn} onPress={() => {
+            const r: any = redemptions.find(x => x.id === redemptionId);
+            const c = r?.creator;
+            const handle = c?.tiktok_handle || c?.instagram_handle;
+            setRatingTarget({ redemptionId, name: handle ? `@${String(handle).replace('@', '')}` : (c?.profile?.full_name ?? 'this creator'), rating: r?.business_rating, note: r?.business_public_review, anonymous: r?.business_review_anonymous });
+          }} activeOpacity={0.8}>
             {existingRating != null ? (
               <>
                 {[1,2,3,4,5].map(n => (
@@ -747,9 +626,10 @@ export default function BusinessCircuitDetailScreen() {
       {ratingTarget && (
         <RatingModal
           visible={true}
+          kind="creator"
           redemptionId={ratingTarget.redemptionId}
-          circuitTitle={circuit.title}
-          initialRating={ratingTarget.existingRating}
+          name={ratingTarget.name}
+          initial={ratingTarget}
           onClose={() => setRatingTarget(null)}
           onSaved={loadData}
         />

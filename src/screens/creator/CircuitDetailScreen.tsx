@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { Circuit } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import { RatingModal, Stars } from '../../components/Reviews';
 import { getPushToken, sendPush } from '../../lib/notifications';
 import { trackEvent } from '../../lib/analytics';
 import { isEligibleForCircuit, currentlyEligibleRanges, creatorFollowersByPlatform, eligibilityStatus, creatorFollowerCounts, minFollowersLabel, type PlatformCountMap } from '../../lib/eligibility';
@@ -159,6 +160,8 @@ export default function CircuitDetailScreen() {
   const [redemptionStatus, setRedemptionStatus] = useState<string | null>(null);
   const [redemptionId, setRedemptionId] = useState<string | null>(null);
   const [hasPost, setHasPost] = useState(false);
+  const [myReview, setMyReview] = useState<{ rating: number | null; note: string | null; anonymous: boolean | null } | null>(null);
+  const [showRate, setShowRate] = useState(false);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   const [voucherWindowEnd, setVoucherWindowEnd] = useState<string | null>(null);
   const [problemReportedAt, setProblemReportedAt] = useState<string | null>(null);
@@ -188,7 +191,7 @@ export default function CircuitDetailScreen() {
         .then(({ data: creator }) => {
           if (!creator) return;
           supabase.from('redemptions')
-            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at')
+            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, creator_rating, creator_review, creator_review_anonymous')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
@@ -197,6 +200,7 @@ export default function CircuitDetailScreen() {
                 setHasClaimed(true);
                 setRedemptionStatus(existing.status ?? null);
                 setRedemptionId(existing.id);
+                setMyReview({ rating: existing.creator_rating ?? null, note: existing.creator_review ?? null, anonymous: existing.creator_review_anonymous ?? null });
                 setCheckedInAt(existing.checked_in_at ?? null);
                 setProblemReportedAt(existing.problem_reported_at ?? null);
                 if (existing.checked_in_at) {
@@ -693,7 +697,25 @@ export default function CircuitDetailScreen() {
             <Text style={styles.stepText}>
               You've visited, redeemed, and posted. This current is fully complete — thanks for being a great creator!
             </Text>
+            <TouchableOpacity style={styles.rateRow} onPress={() => setShowRate(true)} activeOpacity={0.8}>
+              {myReview?.rating ? (
+                <><Stars value={myReview.rating} size={15} /><Text style={styles.rateRowText}>Edit your review</Text></>
+              ) : (
+                <><Icon name="star" size={16} color={C.accent} /><Text style={styles.rateRowText}>Rate {circuit.business?.business_name ?? 'the business'}</Text></>
+              )}
+            </TouchableOpacity>
           </View>
+        )}
+        {redemptionId && (
+          <RatingModal
+            visible={showRate}
+            kind="business"
+            redemptionId={redemptionId}
+            name={circuit.business?.business_name ?? 'the business'}
+            initial={myReview ?? undefined}
+            onClose={() => setShowRate(false)}
+            onSaved={fetchRedemptionStatus}
+          />
         )}
 
         {circuit.creator_notes ? (
@@ -1099,6 +1121,8 @@ const styles = StyleSheet.create({
   eventCardOpenText: { fontFamily: F.bodySemi, fontSize: 14, color: C.accent },
   // State boxes
   stateBox: { backgroundColor: C.accentTint, borderRadius: R.lg, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: C.accentSoft },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, alignSelf: 'flex-start', backgroundColor: C.card, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: C.line },
+  rateRowText: { fontFamily: F.bodySemi, fontSize: 14, color: C.accent },
   stateBoxComplete: { backgroundColor: C.okSoft, borderColor: C.ok + '44' },
   stateTitle: { fontFamily: F.display, fontWeight: '700', fontSize: 15, color: C.accent, marginBottom: 14 },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12, gap: 12 },

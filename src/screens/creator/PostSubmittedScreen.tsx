@@ -14,25 +14,20 @@ export default function PostSubmittedScreen() {
   const { redemptionId, businessName } = route.params ?? {};
 
   const [rating, setRating] = useState(0);
-  const [publicFeedback, setPublicFeedback] = useState('');
-  const [anonymousFeedback, setAnonymousFeedback] = useState('');
-  const [appFeedback, setAppFeedback] = useState('');
+  const [note, setNote] = useState('');
+  const [anonymous, setAnonymous] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleComplete() {
     setSubmitting(true);
     try {
-      if (redemptionId && (rating || publicFeedback || anonymousFeedback || appFeedback)) {
-        await supabase.from('redemption_feedback').insert({
-          redemption_id: redemptionId,
-          rating: rating || null,
-          public_feedback: publicFeedback || null,
-          anonymous_feedback: anonymousFeedback || null,
-          app_feedback: appFeedback || null,
+      if (redemptionId && rating) {
+        await supabase.rpc('rate_business', {
+          p_redemption_id: redemptionId, p_rating: rating, p_note: note, p_anonymous: anonymous,
         });
       }
     } catch (_) {
-      // feedback is optional
+      // review is optional
     } finally {
       setSubmitting(false);
       navigation.getParent()?.navigate('ProfileTab');
@@ -61,51 +56,34 @@ export default function PostSubmittedScreen() {
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>Public feedback</Text>
-          <Text style={styles.sectionHint}>Visible to the business and other creators</Text>
+          <Text style={styles.sectionLabel}>Add a note <Text style={styles.sectionHint}>(optional)</Text></Text>
           <TextInput
             style={styles.textArea}
-            value={publicFeedback}
-            onChangeText={setPublicFeedback}
-            placeholder="Share your experience with this business..."
+            value={note}
+            onChangeText={setNote}
+            placeholder="What was the experience like?"
             placeholderTextColor={C.muted2}
             multiline
-            numberOfLines={3}
+            maxLength={500}
             textAlignVertical="top"
           />
 
-          <Text style={styles.sectionLabel}>Anonymous feedback</Text>
-          <Text style={styles.sectionHint}>Only visible to the business — your name is hidden</Text>
-          <TextInput
-            style={styles.textArea}
-            value={anonymousFeedback}
-            onChangeText={setAnonymousFeedback}
-            placeholder="Anything you'd share privately with the business..."
-            placeholderTextColor={C.muted2}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-
-          <Text style={styles.sectionLabel}>App feedback</Text>
-          <Text style={styles.sectionHint}>Let us know how we can improve!</Text>
-          <TextInput
-            style={styles.textArea}
-            value={appFeedback}
-            onChangeText={setAppFeedback}
-            placeholder="How can we make Current better for you?"
-            placeholderTextColor={C.muted2}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
+          <TouchableOpacity style={styles.checkRow} onPress={() => setAnonymous(a => !a)} activeOpacity={0.7}>
+            <View style={[styles.box, anonymous && styles.boxOn]}>
+              {anonymous && <Icon name="check" size={13} color="#fff" stroke={3} />}
+            </View>
+            <Text style={styles.checkText}>Post anonymously</Text>
+          </TouchableOpacity>
+          <Text style={styles.sectionHint}>
+            Your review shows on {businessName ?? 'the business'}'s profile{anonymous ? ' without your name' : ' with your name'} and helps other creators decide who to work with. It's about the business, not the Local Current app.
+          </Text>
 
           <TouchableOpacity
             style={[styles.button, submitting && styles.buttonDisabled]}
             onPress={handleComplete}
             disabled={submitting}
           >
-            <Text style={styles.buttonText}>{submitting ? 'Saving…' : 'Complete Current'}</Text>
+            <Text style={styles.buttonText}>{submitting ? 'Saving…' : rating ? 'Submit review' : 'Done'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.getParent()?.navigate('ProfileTab')}>
@@ -141,6 +119,10 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6, shadowOpacity: 0 },
   buttonText: { fontFamily: F.display, fontWeight: '700', fontSize: 16, color: '#fff' },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18, marginBottom: 8 },
+  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: C.line2, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: C.accent, borderColor: C.accent },
+  checkText: { fontFamily: F.bodySemi, fontSize: 14.5, color: C.ink },
   skipBtn: { alignItems: 'center', marginTop: 16 },
   skipText: { fontFamily: F.body, color: C.muted2, fontSize: 14, textDecorationLine: 'underline' },
 });
