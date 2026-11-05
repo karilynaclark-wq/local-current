@@ -44,15 +44,13 @@ export default function BusinessHeader({ business, neighborhood, onAvatarPress, 
       {(ig || tt) && (
         <View style={styles.pills}>
           {ig ? (
-            <TouchableOpacity style={styles.pill} onPress={() => Linking.openURL(`https://www.instagram.com/${ig}`)} activeOpacity={0.7}>
-              <SocialIcon kind="ig" size={15} color={C.ink} />
-              <Text style={styles.pillText}>@{ig}</Text>
+            <TouchableOpacity style={styles.pill} accessibilityLabel={`Instagram @${ig}`} onPress={() => Linking.openURL(`https://www.instagram.com/${ig}`)} activeOpacity={0.7}>
+              <SocialIcon kind="ig" size={20} color={C.ink} />
             </TouchableOpacity>
           ) : null}
           {tt ? (
-            <TouchableOpacity style={styles.pill} onPress={() => Linking.openURL(`https://www.tiktok.com/@${tt}`)} activeOpacity={0.7}>
-              <SocialIcon kind="tt" size={15} color={C.ink} />
-              <Text style={styles.pillText}>@{tt}</Text>
+            <TouchableOpacity style={styles.pill} accessibilityLabel={`TikTok @${tt}`} onPress={() => Linking.openURL(`https://www.tiktok.com/@${tt}`)} activeOpacity={0.7}>
+              <SocialIcon kind="tt" size={20} color={C.ink} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -92,8 +90,8 @@ const styles = StyleSheet.create({
   name: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 28, letterSpacing: -0.5, color: C.ink, textAlign: 'center', marginTop: 2 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
   pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: C.card, borderRadius: R.pill,
-    borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 9,
+    width: 44, height: 44, borderRadius: 22, backgroundColor: C.card,
+    borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center',
   },
   pillText: { fontFamily: F.bodySemi, fontSize: 14, color: C.ink },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

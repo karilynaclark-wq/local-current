@@ -101,11 +101,6 @@ export default function SettingsScreen() {
         { iconName: 'logout', label: 'Log Out', onPress: signOut },
       ],
     },
-    {
-      items: [
-        { iconName: 'close', label: 'Delete Account', sublabel: 'Permanently remove your account and data', destructive: true, onPress: () => setDeleteModalVisible(true) },
-      ],
-    },
   ];
 
   return (
@@ -142,6 +137,9 @@ export default function SettingsScreen() {
             </View>
           </View>
         ))}
+        <TouchableOpacity onPress={() => setDeleteModalVisible(true)} style={styles.deleteLink} activeOpacity={0.6}>
+          <Text style={styles.deleteLinkText}>Delete account</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <Modal
@@ -188,6 +186,8 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  deleteLink: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 16, marginTop: 4 },
+  deleteLinkText: { fontFamily: F.body, fontSize: 13, color: C.muted2, textDecorationLine: 'underline' },
   container: { flex: 1, backgroundColor: C.paper },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
