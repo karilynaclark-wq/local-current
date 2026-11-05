@@ -18,7 +18,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   layout, hi, p, fine, b, esc, link, btn, ol, ul, card, codeBox, stats,
-  recipient, once, send, sendAdmin, prefsFooter, verifyUnsub, APP_URL, ADMIN_EMAIL,
+  recipient, once, send, sendAdmin, prefsFooter, verifyUnsub, APP_URL, ADMIN_EMAIL, appLink,
 } from '../_shared/email.ts';
 
 const json = (body: unknown, status = 200) =>
@@ -104,7 +104,7 @@ async function businessSignup(db: SupabaseClient, id: string) {
             ['Track performance in the app, automatically.', 'See how many people saw and engaged with each video.'],
           ]) +
           p('You only pay in the tickets you give away. Ready?') +
-          btn('Post your first event') +
+          btn('Post your first event', appLink('post')) +
           p('Talk soon,<br>Kari, founder of Local Current'),
       }));
     }
@@ -137,7 +137,7 @@ async function currentPosted(db: SupabaseClient, id: string) {
       ]) +
       card('Your event', esc(ci.title), code ? `Code: ${esc(code)}` : '', `${spots} creators × 2 tickets`) +
       fine('No need to keep refreshing the app. We\'ll keep you posted.') +
-      btn('View your event'),
+      btn('View your event', appLink(`manage/${ci.id}`)),
   }));
 }
 
@@ -169,7 +169,7 @@ async function claim(db: SupabaseClient, id: string) {
             "Add <strong>#LocalCurrentApp</strong> to your caption. This is how we know your post went live. If you don't include it, we and the business won't see it!",
           ]) +
           fine("Can't make it after all? Release your tickets in the app so another creator can go. No-shows and missing posts can get an account paused or banned (a real local business saved tickets for you, and no-shows have a real impact on them!), so please do give us a heads up.") +
-          btn('View in the app'),
+          btn('View in the app', appLink(`event/${ci.id}`)),
       }));
     }
   }
@@ -185,7 +185,7 @@ async function claim(db: SupabaseClient, id: string) {
         body: hi(`Someone's coming, ${esc(r.first)}.`) +
           p(`${b(c.name)} just claimed tickets to ${b(ci.title)}.`) +
           card('Creator', esc(c.handle), esc(c.followers), `${count ?? 1} of ${spots} claimed`) +
-          btn("See who's coming"),
+          btn("See who's coming", appLink(`manage/${ci.id}`)),
         footer: await prefsFooter("You're getting this because you have a live event.", biz.profile_id),
       }));
     }
@@ -205,7 +205,7 @@ async function postAdded(db: SupabaseClient, id: string) {
     tag: 'New post', preview: 'Go watch it and show some love.',
     body: hi(`It's up, ${esc(r.first)}.`) +
       p(`${b(c.handle)} just posted about ${b(ci.title)}. Go check it out!`) +
-      btn('Watch the video') +
+      btn('Watch the video', appLink(`manage/${ci.id}`)) +
       fine("A like or a share from you helps it reach more people. We'll send you the numbers in 24 hours."),
     footer: await prefsFooter("You're getting this because a creator posted about your event.", ci.business.profile_id),
   }));
@@ -254,7 +254,7 @@ async function hourly(db: SupabaseClient) {
           body: hi(`First 24 hours, ${esc(r.first)}.`) +
             p(`Here's how ${esc(c.handle)}'s video for ${b(ci.title)} is doing so far:`) +
             stats([[compact(post.views), 'views'], [compact(eng), 'engagements']]) +
-            btn('View the post'),
+            btn('View the post', appLink(`manage/${ci.id}`)),
           footer: await prefsFooter("You're getting this because a creator posted about your event.", ci.business.profile_id),
         }));
         sent++;
@@ -274,7 +274,7 @@ async function hourly(db: SupabaseClient) {
             p(`Thanks for posting about ${b(ci.title)}! Your video is live, and ${esc(bizName)} can see it.`) +
             p(`How was your experience with ${esc(bizName)}? Please rate them in the app.`) +
             p(`Your review shows up <strong>anonymously</strong> on ${esc(bizName)}'s profile and helps other creators decide who to work with.`) +
-            btn(`Review ${bizName}`) +
+            btn(`Review ${bizName}`, appLink(`event/${ci.id}`)) +
             fine(`This review is just about ${esc(bizName)} and the event, not the Local Current app. Got app feedback? Reply to this email instead.`),
           footer: await prefsFooter("You're getting this because you posted about an event.", c.profile_id),
         }));
@@ -291,7 +291,7 @@ async function hourly(db: SupabaseClient) {
           body: hi(`How did ${esc(c.handle)} do?`) +
             p(`${esc(c.handle)} posted about ${b(ci.title)}. How was your experience working with them? Please rate them in the app.`) +
             p('Your rating shows up on their profile, and helps other businesses know who to work with.') +
-            btn(`Rate ${c.handle}`) +
+            btn(`Rate ${c.handle}`, appLink(`manage/${ci.id}`)) +
             fine(`This rating is just about ${esc(c.handle)} and working with them, not the Local Current app. Got app feedback? Reply to this email instead.`),
           footer: await prefsFooter("You're getting this because a creator posted about your event.", ci.business.profile_id),
         }));

@@ -13,7 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { layout, hi, p, b, esc, btn, card, recipient, once, send, prefsFooter } from '../_shared/email.ts';
+import { layout, hi, p, b, esc, btn, card, recipient, once, send, prefsFooter, appLink } from '../_shared/email.ts';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const DAY = 86_400_000;
@@ -102,7 +102,7 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
           p(`${b(biz)} wants to give you 2 free tickets to ${b(circuit.title)}. One for you, one for a friend.`) +
           card(esc(biz), esc(circuit.title), esc(circuit.description ?? ''), `${spots} spots`) +
           p(`Only ${spots} creators get in, and it's first come, first served. If you want it, grab it.`) +
-          btn('Claim tickets'),
+          btn('Claim tickets', appLink(`event/${circuit.id}`)),
         footer: await prefsFooter("You're getting this because events are open to your tier.", c.profile_id),
       }));
     } catch (e) { console.error('email 03', e); }

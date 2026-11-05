@@ -5,7 +5,7 @@ import { trackScreen } from '../lib/analytics';
 const navRef = createNavigationContainerRef<any>();
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, Text, TouchableOpacity, Linking } from 'react-native';
 import { C, F } from '../theme';
 import { Icon } from '../components/Icon';
 
@@ -248,8 +248,42 @@ function AdminStack() {
   );
 }
 
+/**
+ * Deep links from emails and pushes:
+ *   localcurrent://event/<id>   creator: the event page (claim, code, review)
+ *   localcurrent://manage/<id>  business: the event dashboard (claims, posts, ratings)
+ *   localcurrent://post         business: post a new event
+ *   localcurrent://home         the home tab
+ * Also accepts https://localcurrentapp.com/open?to=<path>.
+ */
+function parseDeepLink(url: string): { kind: string; id?: string } | null {
+  try {
+    let path = url.replace(/^[a-z][\w.+-]*:\/\//i, '');
+    const to = url.match(/[?&]to=([^&]+)/);
+    if (/^https?:/.test(url)) { if (!to) return null; path = decodeURIComponent(to[1]); }
+    const [kind, id] = path.replace(/^\/+/, '').split(/[/?#]/);
+    return kind ? { kind, id } : null;
+  } catch { return null; }
+}
+
+async function openDeepLink(link: { kind: string; id?: string }, role: string) {
+  if (!navRef.isReady()) return false;
+  if ((link.kind === 'event' || link.kind === 'manage') && link.id) {
+    const { data: circuit } = await supabase.from('circuits').select('*, business:businesses(*)').eq('id', link.id).maybeSingle();
+    if (!circuit) return true;
+    if (role === 'business') navRef.navigate('MyCircuitsTab', { screen: 'BusinessCircuitDetail', params: { circuit } });
+    else navRef.navigate('BrowseTab', { screen: 'CircuitDetail', params: { circuit } });
+    return true;
+  }
+  if (link.kind === 'post' && role === 'business') { navRef.navigate('PostTab', { screen: 'PostIntro' }); return true; }
+  if (link.kind === 'home') { navRef.navigate(role === 'business' ? 'MyCircuitsTab' : 'BrowseTab'); return true; }
+  return true;
+}
+
 export default function RootNavigator() {
   const lastScreen = React.useRef<string | null>(null);
+  const pendingLink = React.useRef<{ kind: string; id?: string } | null>(null);
+  const [navReady, setNavReady] = useState(false);
   const { session, profile, loading } = useAuth();
   const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
   const [creatorLoading, setCreatorLoading] = useState(false);
@@ -298,6 +332,24 @@ export default function RootNavigator() {
 
   const businessLoading = !!session && profile?.role === 'business' && hasBusiness === null;
 
+  // Remember incoming links; open them once signed in and the tabs are showing.
+  useEffect(() => {
+    const take = (url: string | null) => { const l = url && parseDeepLink(url); if (l) pendingLink.current = l; flushRef.current(); };
+    Linking.getInitialURL().then(take);
+    const sub = Linking.addEventListener('url', ({ url }) => take(url));
+    return () => sub.remove();
+  }, []);
+  const tabsShowing = !!session && !!profile && (profile.role === 'business' ? !!hasBusiness : creatorStatus === 'approved' || creatorStatus === 'pending');
+  function flush() {
+    const l = pendingLink.current;
+    if (!l || !tabsShowing || !profile) return;
+    pendingLink.current = null;
+    setTimeout(() => openDeepLink(l, profile.role), 300);
+  }
+  const flushRef = React.useRef(flush);
+  flushRef.current = flush;
+  useEffect(() => { if (navReady) flush(); }, [navReady, tabsShowing]);
+
   if (loading || creatorLoading || businessLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -320,7 +372,7 @@ export default function RootNavigator() {
   return (
     <NavigationContainer
       ref={navRef}
-      onReady={() => { const r = navRef.getCurrentRoute(); if (r) trackScreen(r.name); }}
+      onReady={() => { setNavReady(true); const r = navRef.getCurrentRoute(); if (r) trackScreen(r.name); }}
       onStateChange={() => {
         // One "screen" event per page view, so PostHog shows where people go and drop off.
         const r = navRef.getCurrentRoute();
