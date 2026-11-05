@@ -7,7 +7,7 @@ import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // Buttons open the app on the right screen. localcurrentapp.com/open is a small
 // page that hands off to localcurrent://<path> (email apps block custom-scheme
 // links) and sends people without the app to the App Store.
-export const appLink = (path = 'home') => `https://localcurrentapp.com/open?to=${encodeURIComponent(path)}`;
+export const appLink = (path = 'home') => `https://www.localcurrentapp.com/open?to=${encodeURIComponent(path)}`;
 export const APP_URL = appLink('home');
 export const APP_STORE_URL = 'https://apps.apple.com/us/app/local-current/id6781426256';
 export const ADMIN_EMAIL = 'hello@localcurrentapp.com';
