@@ -224,6 +224,26 @@ async function problem(db: SupabaseClient, id: string) {
   ]);
 }
 
+async function report(db: SupabaseClient, id: string) {
+  if (!(await once(db, `15r:${id}`))) return;
+  const { data: rep } = await db.from('problem_reports').select('*').eq('id', id).single();
+  if (!rep) return;
+  const [{ data: prof }, { data: u }, ci, c] = await Promise.all([
+    db.from('profiles').select('full_name, role').eq('id', rep.reporter_id).single(),
+    db.auth.admin.getUserById(rep.reporter_id),
+    rep.circuit_id ? circuitInfo(db, rep.circuit_id) : Promise.resolve(null),
+    rep.creator_id ? creatorInfo(db, rep.creator_id) : Promise.resolve(null),
+  ]);
+  await sendAdmin(`Problem reported${ci ? `: ${ci.title}` : ''}`, [
+    `<b>${esc(prof?.full_name || 'Someone')}</b> (${esc(prof?.role ?? 'user')}, ${esc(u?.user?.email ?? 'no email')}) reported a problem.`,
+    ci ? `Event: ${esc(ci.title)} · ${esc(ci.business?.business_name ?? '')}` : 'General report (from Settings)',
+    c ? `About creator: ${esc(c.name)} (${esc(c.handle)})` : '',
+    `Type: ${esc(String(rep.report_type).replace(/_/g, ' '))}`,
+    `Details: ${esc(rep.details ?? '—')}`,
+    'Reply to them directly at the email above.',
+  ].filter(Boolean));
+}
+
 // ── Hourly: 24 hours after a post ────────────────────────────────────────────
 
 async function hourly(db: SupabaseClient) {
@@ -357,6 +377,7 @@ serve(async (req) => {
       case 'claim': await claim(db, id); break;
       case 'post': await postAdded(db, id); break;
       case 'problem': await problem(db, id); break;
+      case 'report': await report(db, id); break;
       case 'hourly': return json({ sent: await hourly(db) });
       case 'test': {
         // Preview: sends the welcome emails to the admin inbox with sample data.

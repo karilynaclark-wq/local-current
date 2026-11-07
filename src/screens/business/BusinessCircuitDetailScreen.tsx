@@ -13,6 +13,7 @@ import { C, F, R, S } from '../../theme';
 import PostStats, { hasPostStats } from '../../components/PostStats';
 import { Icon, SocialIcon } from '../../components/Icon';
 import { RatingModal } from '../../components/Reviews';
+import ProblemReportModal from '../../components/ProblemReportModal';
 
 // ─── Extend expiry modal ──────────────────────────────────────────────────────
 interface ExtendModalProps {
@@ -137,6 +138,7 @@ export default function BusinessCircuitDetailScreen() {
   const [showVoucherPreview, setShowVoucherPreview] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [creatorListModal, setCreatorListModal] = useState<{ title: string; creators: any[] } | null>(null);
+  const [showReport, setShowReport] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<{ redemptionId: string; name: string; rating?: number | null; note?: string | null; anonymous?: boolean | null } | null>(null);
 
   // Map postId → redemptionId so we can rate from a post card
@@ -529,6 +531,9 @@ export default function BusinessCircuitDetailScreen() {
             <TouchableOpacity style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled, { marginTop: 12 }]} onPress={handleDelete} disabled={deleting}>
               <Text style={styles.deleteBtnText}>{deleting ? 'Deleting…' : 'Delete this current'}</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowReport(true)} style={styles.reportLink} activeOpacity={0.6}>
+              <Text style={styles.reportLinkText}>Report a problem</Text>
+            </TouchableOpacity>
           </>
         }
       />
@@ -623,6 +628,16 @@ export default function BusinessCircuitDetailScreen() {
         onSaved={handleExtend}
       />
 
+      <ProblemReportModal
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        circuitId={circuit.id}
+        creators={redemptions.filter((r: any) => r.creator).map((r: any) => {
+          const h = r.creator.tiktok_handle || r.creator.instagram_handle;
+          return { id: r.creator_id, name: h ? `@${String(h).replace('@', '')}` : (r.creator.profile?.full_name ?? 'Creator') };
+        }).filter((c, i, a) => a.findIndex(x => x.id === c.id) === i)}
+      />
+
       {ratingTarget && (
         <RatingModal
           visible={true}
@@ -639,6 +654,8 @@ export default function BusinessCircuitDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  reportLink: { alignItems: 'center', paddingVertical: 24 },
+  reportLinkText: { fontFamily: F.body, fontSize: 13, color: C.muted2, textDecorationLine: 'underline' },
   container: { flex: 1, backgroundColor: C.paper },
   list: { padding: 16 },
   header: { marginBottom: 16 },

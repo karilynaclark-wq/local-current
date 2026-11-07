@@ -9,6 +9,7 @@ import { signOut } from '../../lib/auth';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import ConnectedAccountsSection from '../../components/ConnectedAccountsSection';
+import ProblemReportModal from '../../components/ProblemReportModal';
 
 interface MenuItem {
   iconName: any;
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
   const [deleting, setDeleting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -87,6 +89,7 @@ export default function SettingsScreen() {
       items: [
         { iconName: 'person', label: 'Edit Profile', chevron: true, onPress: () => navigation.navigate('EditProfile') },
         { iconName: 'gear', label: resettingPassword ? 'Sending…' : 'Reset Password', sublabel: "We'll email you a reset link", onPress: handleResetPassword },
+        { iconName: 'clipboard', label: 'Report a problem', sublabel: "Tell us what went wrong", chevron: true, onPress: () => setShowReport(true) },
         { iconName: 'bell', label: 'Send Feedback', sublabel: 'hello@localcurrentapp.com', chevron: true, onPress: sendFeedback },
       ],
     },
@@ -137,6 +140,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         ))}
+        <ProblemReportModal visible={showReport} onClose={() => setShowReport(false)} />
         <TouchableOpacity onPress={() => setDeleteModalVisible(true)} style={styles.deleteLink} activeOpacity={0.6}>
           <Text style={styles.deleteLinkText}>Delete account</Text>
         </TouchableOpacity>
