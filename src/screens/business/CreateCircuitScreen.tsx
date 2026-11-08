@@ -179,7 +179,7 @@ export default function CreateCircuitScreen() {
         max_redemptions: maxRedemptions,
         follower_ranges: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))],
       });
-      navigation.navigate('CircuitLive');
+      navigation.navigate('CircuitLive', { mode: approvalMode, tickets: ticketsPer, circuit });
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {

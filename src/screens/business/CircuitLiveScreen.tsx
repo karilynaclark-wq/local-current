@@ -1,25 +1,40 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 
 const LIVE_GREEN = '#3F8F5B';
 const LIVE_GREEN_TINT = '#E7F1E9';
 
-const STEPS: { icon: any; title: string; desc: string; notify: boolean }[] = [
-  { icon: 'film', title: 'Creators claim tickets', desc: 'They get your code and buy 2 free tickets on your ticket site.', notify: true },
-  { icon: 'check', title: 'They attend', desc: 'With a friend, on the day of your event.', notify: false },
-  { icon: 'sparkles', title: 'They post their review', desc: 'Real video content, straight to their page.', notify: true },
-  { icon: 'eye', title: 'You track the results', desc: 'Views, reach and visits, all in one place.', notify: false },
+type Step = { icon: any; title: string; desc: string; notify: boolean };
+
+function instantSteps(tickets: number): Step[] {
+  const friends = tickets === 1 ? 'Solo' : tickets === 2 ? 'With a friend' : `With ${tickets - 1} friends`;
+  return [
+    { icon: 'film', title: 'Creators claim tickets', desc: `They get your code and redeem ${tickets} free ticket${tickets === 1 ? '' : 's'} on your ticket site.`, notify: true },
+    { icon: 'check', title: 'They attend', desc: `${friends}, on the day of your event.`, notify: false },
+    { icon: 'sparkles', title: 'They post their review', desc: 'Real video content, straight to their page.', notify: true },
+    { icon: 'eye', title: 'You track the results', desc: 'Views and engagement, all in one place.', notify: false },
+  ];
+}
+
+const MANUAL_STEPS: Step[] = [
+  { icon: 'film', title: 'Creators express interest', desc: "You'll review and approve or reject.", notify: true },
+  { icon: 'check', title: 'You pick who goes', desc: 'Approve creators anytime, even before the deadline. Choose how they get tickets: a promo code, the guest list, or email.', notify: false },
+  { icon: 'bell', title: 'They confirm', desc: 'Creators have 72 hours to tap "Got it!" If they don\'t, their spot opens back up.', notify: true },
+  { icon: 'sparkles', title: 'They attend and post', desc: 'An honest video within 48 hours of your event.', notify: true },
+  { icon: 'eye', title: 'You track the results', desc: 'Views and engagement for every post, in one place.', notify: false },
 ];
 
 export default function CircuitLiveScreen() {
   const navigation = useNavigation<any>();
+  const { mode = 'instant', tickets = 2, circuit } = (useRoute<any>().params ?? {}) as { mode?: 'instant' | 'manual'; tickets?: number; circuit?: any };
+  const STEPS = mode === 'manual' ? MANUAL_STEPS : instantSteps(tickets);
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.iconWrap}>
             <Icon name="sparkles" size={40} color={LIVE_GREEN} />
@@ -53,10 +68,14 @@ export default function CircuitLiveScreen() {
             </View>
           ))}
         </View>
-      </View>
+      </ScrollView>
 
-      <TouchableOpacity style={styles.button} onPress={() => { navigation.popToTop(); navigation.navigate('MyCircuitsTab'); }} activeOpacity={0.9}>
-        <Text style={styles.buttonText}>View my currents</Text>
+      <TouchableOpacity style={styles.button} onPress={() => {
+        navigation.popToTop();
+        if (mode === 'manual' && circuit) navigation.navigate('MyCircuitsTab', { screen: 'BusinessCircuitDetail', params: { circuit } });
+        else navigation.navigate('MyCircuitsTab');
+      }} activeOpacity={0.9}>
+        <Text style={styles.buttonText}>{mode === 'manual' ? 'Review interested creators' : 'View my currents'}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -64,7 +83,7 @@ export default function CircuitLiveScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper, paddingVertical: 24 },
-  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
+  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 12 },
 
   header: { alignItems: 'center', marginBottom: 40 },
   iconWrap: {
