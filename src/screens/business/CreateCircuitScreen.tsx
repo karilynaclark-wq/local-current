@@ -319,19 +319,6 @@ export default function CreateCircuitScreen() {
                 })}
               </View>
 
-              {approvalMode === 'manual' && (
-                <>
-                  <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
-                  <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
-                  <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />
-                  {deadline && (
-                    <Text style={[styles.hint, { marginTop: 8 }]}>
-                      Deadline: {deadline.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at 11:59 PM
-                    </Text>
-                  )}
-                </>
-              )}
-
               {approvalMode && (<>
                   <Text style={[styles.label, styles.labelGap]}>When is it? <Text style={styles.req}>*</Text></Text>
                   <View style={styles.platformRow}>
@@ -378,6 +365,19 @@ export default function CreateCircuitScreen() {
                   )}
 
               </>)}
+
+              {approvalMode === 'manual' && (
+                <>
+                  <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
+                  <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
+                  <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />
+                  {deadline && (
+                    <Text style={[styles.hint, { marginTop: 8 }]}>
+                      Deadline: {deadline.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at 11:59 PM
+                    </Text>
+                  )}
+                </>
+              )}
 
               {approvalMode && (<>
                 <Text style={[styles.label, styles.labelGap]}>How many tickets does each creator get? <Text style={styles.req}>*</Text></Text>

@@ -606,7 +606,7 @@ export default function CircuitDetailScreen() {
                   circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
                   isManual && isRecurring ? 'Multiple dates' : null,
                   isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} picks by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
-                ].filter(Boolean).map(x => `  ·  ${x}`).join('')}
+                ].filter(Boolean).map((x, i) => (i === 0 && eligStatus === null ? x : `  ·  ${x}`)).join('')}
               </Text>
             </TouchableOpacity>
           </>
@@ -756,7 +756,7 @@ export default function CircuitDetailScreen() {
             <View style={styles.stepRow}>
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>2</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.stepText}>Book your date on their site with the code, then tap "I got my tickets" and tell us which day you're going.</Text>
+                <Text style={styles.stepText}>{eventAt ? 'Get your tickets on their site with the code, then tap "I got my tickets."' : 'Book your date on their site with the code, then tap "I got my tickets" and tell us which day you\'re going.'}</Text>
               </View>
             </View>
 
@@ -1035,7 +1035,7 @@ export default function CircuitDetailScreen() {
                 maxLength={140}
               />
               <Text style={[styles.datesSub, { marginTop: 10 }]}>
-                If you're picked, you'll get {ticketsLabel} and have 72 hours to confirm. Post within 48 hours of going.
+                If you're picked, you'll get {ticketsLabel} and have up to 72 hours to confirm. Post within 48 hours of going.
               </Text>
               <TouchableOpacity style={[styles.button, (loading || !pickDates.length) && styles.buttonDisabled]} onPress={handleRequest} disabled={loading || !pickDates.length}>
                 <Text style={styles.buttonText}>{loading ? 'Sending…' : "I'm interested"}</Text>
@@ -1058,7 +1058,7 @@ export default function CircuitDetailScreen() {
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
                 {isManual
-                  ? <>{circuit.business?.business_name ?? 'The business'} picks creators{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>72 hours to confirm</Text>.</>
+                  ? <>{circuit.business?.business_name ?? 'The business'} picks creators{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to confirm</Text>.</>
                   : <>You'll get a <Text style={styles.claimBold}>code for {ticketsLabel}</Text> to use online right away.</>}
               </Text>
             </View>
