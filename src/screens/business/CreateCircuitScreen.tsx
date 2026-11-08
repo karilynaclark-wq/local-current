@@ -149,7 +149,7 @@ export default function CreateCircuitScreen() {
         required_platform: approvalMode === 'manual' || selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: approvalMode === 'manual' ? null : Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
         max_redemptions: approvalMode === 'manual' ? null : maxRedemptions,
-        guest_count: approvalMode === 'manual' ? 1 : guestCount,
+        guest_count: guestCount,
         min_followers: approvalMode === 'manual' ? null : minFollowing,
         starts_at: new Date().toISOString().split('T')[0],
         expires_at: null, // stays open until every spot is claimed or the business pauses it
@@ -298,6 +298,20 @@ export default function CreateCircuitScreen() {
                 </>
               )}
 
+              {approvalMode && (<>
+                <Text style={[styles.label, styles.labelGap]}>How many tickets does each creator get? <Text style={styles.req}>*</Text></Text>
+                <View style={styles.chips}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <TouchableOpacity key={n} style={[styles.chip, ticketsPer === n && styles.chipSelected]} onPress={() => setTicketsPer(n)}>
+                      <Text style={[styles.chipText, ticketsPer === n && styles.chipTextSelected]}>{n}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={[styles.hint, { marginTop: -12 }]}>
+                  {ticketsPer === 1 ? 'Just one ticket, for the creator.' : ticketsPer === 2 ? '2 tickets: the creator can bring a friend.' : `${ticketsPer} tickets: the creator can bring ${ticketsPer - 1} friends.`}
+                </Text>
+              </>)}
+
               {approvalMode === 'instant' && (<>
               <Text style={[styles.label, styles.labelGap]}>Minimum following <Text style={styles.req}>*</Text></Text>
               <Text style={styles.hint}>Creators with larger followings will get first access.</Text>
@@ -374,19 +388,8 @@ export default function CreateCircuitScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.label, styles.labelGap]}>Tickets per creator <Text style={styles.req}>*</Text></Text>
-              <View style={styles.stepper}>
-                <Text style={styles.stepperValue}>{ticketsPer}</Text>
-                <Text style={styles.stepperUnit}>{ticketsPer === 1 ? 'ticket' : 'tickets'}</Text>
-                <TouchableOpacity style={[styles.stepperBtn, ticketsPer <= 1 && { opacity: 0.4 }]} onPress={() => setTicketsPer(n => Math.max(1, n - 1))} disabled={ticketsPer <= 1}>
-                  <Text style={styles.stepperBtnText}>−</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.stepperBtn, ticketsPer >= 4 && { opacity: 0.4 }]} onPress={() => setTicketsPer(n => Math.min(4, n + 1))} disabled={ticketsPer >= 4}>
-                  <Text style={styles.stepperBtnText}>+</Text>
-                </TouchableOpacity>
-              </View>
               <Text style={styles.summary}>
-                Each creator gets {ticketsPer === 1 ? '1 ticket (just them)' : `${ticketsPer} tickets (them + ${ticketsPer - 1} guest${ticketsPer > 2 ? 's' : ''})`} = {maxRedemptions * ticketsPer} tickets total
+                {maxRedemptions * ticketsPer} tickets total ({maxRedemptions} creators × {ticketsPer})
               </Text>
 
               {(<>
