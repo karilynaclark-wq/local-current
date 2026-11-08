@@ -783,7 +783,11 @@ export default function CircuitDetailScreen() {
             <View style={styles.bookedRow}>
               <Icon name="ticket" size={18} color={C.accent} />
               <Text style={[styles.stepText, { flex: 1 }]}>
-                You redeemed tickets on the event's ticketing site. For ticket and event details, check the email you used to redeem them.
+                {deliveryMethod === 'guest_list'
+                  ? `You're on the guest list under ${creatorName || 'your name'}${ticketCount > 1 ? ` (+${ticketCount - 1})` : ''}${goingStr ? ` for ${goingStr}` : ''}. Show your ID at the door.`
+                  : deliveryMethod === 'email'
+                  ? `${circuit.business?.business_name ?? 'The business'} is emailing your tickets to ${myEmail || 'your email'}${goingStr ? ` for ${goingStr}` : ''}. Check your spam folder too.`
+                  : "You redeemed tickets on the event's ticketing site. For ticket and event details, check the email you used to redeem them."}
               </Text>
             </View>
             <View style={styles.bookedRow}>
