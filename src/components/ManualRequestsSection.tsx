@@ -26,6 +26,11 @@ const METHOD_LABEL: Record<Method, string> = { code: 'Promo code', guest_list: '
 const fmtDay = (ymd: string) =>
   new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
+const fmtCount = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  : n >= 10_000 ? `${Math.round(n / 1_000)}K`
+  : n >= 1_000 ? `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K` : String(n);
+
 const handleOf = (c: any) => {
   const h = c?.tiktok_handle || c?.instagram_handle;
   return h ? `@${String(h).replace('@', '')}` : (c?.profile?.full_name ?? 'Creator');
@@ -43,6 +48,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [going, setGoing] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, { tiktok: number | null; instagram: number | null }>>({});
   const recurring = circuit.schedule_type === 'recurring';
 
   const requested = redemptions.filter(r => r.status === 'requested')
@@ -53,6 +59,25 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
   const full = spots > 0 && filled >= spots;
   const tickets = (circuit.guest_count ?? 1) + 1;
   const deadline = circuit.request_deadline ? new Date(circuit.request_deadline) : null;
+
+  useEffect(() => {
+    const ids = [...new Set(redemptions.map(r => r.creator?.id).filter(Boolean))];
+    if (!ids.length) return;
+    supabase.rpc('creator_follower_counts', { p_creator_ids: ids }).then(({ data }) => {
+      const m: Record<string, { tiktok: number | null; instagram: number | null }> = {};
+      for (const r of (data ?? []) as any[]) m[r.creator_id] = { tiktok: r.tiktok, instagram: r.instagram };
+      setCounts(m);
+    });
+  }, [redemptions]);
+
+  const followersLine = (c: any) => {
+    const n = c?.id ? counts[c.id] : null;
+    const parts = [
+      n?.tiktok != null ? `TikTok ${fmtCount(n.tiktok)}` : null,
+      n?.instagram != null ? `Instagram ${fmtCount(n.instagram)}` : null,
+    ].filter(Boolean);
+    return parts.length ? `${parts.join(' · ')} · ` : '';
+  };
 
   useEffect(() => {
     supabase.rpc('approved_creator_emails', { p_circuit_id: circuit.id }).then(({ data }) => {
@@ -134,7 +159,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
             <Avatar c={r.creator} />
             <View style={{ flex: 1 }}>
               <Text style={st.handle}>{handleOf(r.creator)}</Text>
-              <Text style={st.meta}>{r.creator?.follower_range ? `${r.creator.follower_range} followers · ` : ''}View profile ›</Text>
+              <Text style={st.meta}>{followersLine(r.creator)}View profile ›</Text>
             </View>
           </TouchableOpacity>
           {recurring && !!r.preferred_dates?.length && (
