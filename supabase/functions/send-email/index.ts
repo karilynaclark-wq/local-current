@@ -132,22 +132,16 @@ async function currentPosted(db: SupabaseClient, id: string) {
   await send(r.email, `${ci.title} is live!`, layout({
     tag: 'Live', preview: "Here's what happens next.",
     body: hi(`${esc(ci.title)} is live.`) +
-      p(`Hi ${esc(r.first)}, here's what to expect:`) +
-      ul(manual ? [
-        `<strong>Now until ${esc(deadline || 'your deadline')}:</strong> every creator can see it and tap "I'm interested." We'll notify you as they come in.`,
-        '<strong>You pick who goes:</strong> approve or pass anytime, even before the deadline. For each creator, choose how they get tickets: a promo code, the guest list, or email.',
-        '<strong>They confirm:</strong> creators have 72 hours to tap "Got it!" If they don\'t, their spot opens back up.',
-        '<strong>After the event:</strong> creators post within 48 hours, and we\'ll send you their videos and results.',
-      ] : [
+      (manual ? '' : p(`Hi ${esc(r.first)}, here's what to expect:`)) +
+      (manual ? p("We'll notify you when creators are interested.") : ul([
         top > min ? `<strong>Today:</strong> creators with the biggest followings (${compact(top)}+) see it first.` : '<strong>Today:</strong> every eligible creator can see it.',
         ...(top > min ? [`<strong>Every 24 hours:</strong> it opens to the next group, down to your minimum (${compact(min)}).`] : []),
         '<strong>As creators claim:</strong> we\'ll email you who\'s coming.',
         '<strong>After the event:</strong> creators post within 48 hours, and we\'ll send you their videos and results.',
-      ]) +
-      card('Your event', esc(ci.title), esc(code),
-        manual ? `${(ci.guest_count ?? 1) + 1} tickets per creator` : `${spots} creators × ${(ci.guest_count ?? 1) + 1} tickets`) +
-      fine('No need to keep refreshing the app. We\'ll keep you posted.') +
-      btn(manual ? 'Review interested creators' : 'View your event', appLink(`manage/${ci.id}`)),
+      ])) +
+      (manual ? '' : card('Your event', esc(ci.title), esc(code), `${spots} creators × ${(ci.guest_count ?? 1) + 1} tickets`) +
+        fine('No need to keep refreshing the app. We\'ll keep you posted.')) +
+      btn('View your event', appLink(`manage/${ci.id}`)),
   }));
 }
 
