@@ -131,7 +131,7 @@ async function currentPosted(db: SupabaseClient, id: string) {
   const spots = ci.max_redemptions ?? 0;
   await send(r.email, `${ci.title} is live!`, layout({
     tag: 'Live', preview: "Here's what happens next.",
-    body: hi(`${esc(ci.title)} is live.`) +
+    body: hi(`${esc(ci.title)} is live${manual ? '!' : '.'}`) +
       (manual ? '' : p(`Hi ${esc(r.first)}, here's what to expect:`)) +
       (manual ? p("We'll notify you when creators are interested.") : ul([
         top > min ? `<strong>Today:</strong> creators with the biggest followings (${compact(top)}+) see it first.` : '<strong>Today:</strong> every eligible creator can see it.',
