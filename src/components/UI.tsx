@@ -66,7 +66,7 @@ export function StatusChip({ status, style }: ChipProps) {
   return (
     <View style={[styles.chip, { backgroundColor: col.bg }, style]}>
       <View style={[styles.chipDot, { backgroundColor: col.dot }]}/>
-      <Text style={[styles.chipText, { color: col.text }]}>{status}</Text>
+      <Text style={[styles.chipText, { color: col.text }]}>{status === 'requested' ? 'waitlist' : status}</Text>
     </View>
   );
 }

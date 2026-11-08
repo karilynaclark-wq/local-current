@@ -889,7 +889,7 @@ export default function CircuitDetailScreen() {
               <Text style={styles.unclaimBtnText}>Report an issue</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.unclaimBtn} onPress={() => setShowUnclaimModal(true)}>
-              <Text style={styles.unclaimBtnText}>{isRequested ? 'Withdraw request' : 'Give up my tickets'}</Text>
+              <Text style={styles.unclaimBtnText}>{isRequested ? (isManual ? 'Leave the waitlist' : 'Withdraw request') : 'Give up my tickets'}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -1098,11 +1098,11 @@ export default function CircuitDetailScreen() {
             <Text style={styles.modalTitle}>Are you sure?</Text>
             <Text style={styles.modalBody}>
               {isRequested
-                ? "The business won't see your request anymore."
+                ? (isManual ? "You'll be taken off the waitlist for this event." : "The business won't see your request anymore.")
                 : "Backing out after claiming can count against you. Don't use the code if you give up your tickets."}
             </Text>
             <TouchableOpacity style={[styles.unclaimConfirmBtn, loading && styles.buttonDisabled]} onPress={handleWithdraw} disabled={loading}>
-              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? 'Yes, withdraw' : 'Yes, give up my tickets'}</Text>
+              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? (isManual ? 'Yes, leave the waitlist' : 'Yes, withdraw') : 'Yes, give up my tickets'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowUnclaimModal(false)}>
               <Text style={styles.modalCancelText}>Nevermind</Text>
