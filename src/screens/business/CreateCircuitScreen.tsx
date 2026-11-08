@@ -79,7 +79,7 @@ export default function CreateCircuitScreen() {
   // Step 2
   const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
-  const [approvalMode, setApprovalMode] = useState<'instant' | 'manual'>('instant');
+  const [approvalMode, setApprovalMode] = useState<'instant' | 'manual' | null>(null);
   const [deadlineDays, setDeadlineDays] = useState<number>(7);
   const [ticketsPer, setTicketsPer] = useState<number>(2); // creator + guests
   const guestCount = ticketsPer - 1;
@@ -109,6 +109,8 @@ export default function CreateCircuitScreen() {
       if (!eventLink.trim()) return 'Please add a link where creators can buy tickets.';
     }
     if (s === 2) {
+      if (!approvalMode) return 'Choose how creators get tickets.';
+      if (approvalMode === 'manual') return null; // just a deadline
       if (minFollowing === null) return 'Please choose a minimum following.';
       if (!maxRedemptions || maxRedemptions < 1) return 'Please choose how many creators get tickets.';
       if (approvalMode === 'instant' && codeMode === 'shared' && !sharedCode.trim()) return 'Please add the ticket code creators will use.';
@@ -146,12 +148,12 @@ export default function CreateCircuitScreen() {
         code_mode: approvalMode === 'instant' ? codeMode : null,
         approval_mode: approvalMode,
         request_deadline: approvalMode === 'manual' ? deadlineIn(deadlineDays).toISOString() : null,
-        eligibility_min_followers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
-        required_platform: selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
-        platform_followers: Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
-        max_redemptions: maxRedemptions,
-        guest_count: guestCount,
-        min_followers: minFollowing,
+        eligibility_min_followers: approvalMode === 'manual' ? '' : [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
+        required_platform: approvalMode === 'manual' || selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
+        platform_followers: approvalMode === 'manual' ? null : Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
+        max_redemptions: approvalMode === 'manual' ? null : maxRedemptions,
+        guest_count: approvalMode === 'manual' ? 1 : guestCount,
+        min_followers: approvalMode === 'manual' ? null : minFollowing,
         starts_at: new Date().toISOString().split('T')[0],
         expires_at: null, // stays open until every spot is claimed or the business pauses it
         is_active: true,
@@ -270,7 +272,7 @@ export default function CreateCircuitScreen() {
               <Text style={styles.label}>How do creators get tickets? <Text style={styles.req}>*</Text></Text>
               <View style={styles.modeCol}>
                 {([
-                  ['instant', 'Instant claim', 'Creators who meet your requirements claim tickets and get your code right away.'],
+                  ['instant', 'Instant claim', 'Creators who meet your requirements claim tickets and get your code right away. Requires a discount code creators can redeem online right away.'],
                   ['manual', 'You pick', 'Creators tap "I\'m interested" before a deadline. You approve who goes and choose how they get tickets.'],
                 ] as const).map(([val, label, sub]) => {
                   const on = approvalMode === val;
@@ -303,6 +305,7 @@ export default function CreateCircuitScreen() {
                 </>
               )}
 
+              {approvalMode === 'instant' && (<>
               <Text style={[styles.label, styles.labelGap]}>Minimum following <Text style={styles.req}>*</Text></Text>
               <Text style={styles.hint}>Creators with larger followings will get first access.</Text>
               <TouchableOpacity style={styles.picker} onPress={() => setShowMinPicker(v => !v)}>
@@ -393,11 +396,7 @@ export default function CreateCircuitScreen() {
                 Each creator gets {ticketsPer === 1 ? '1 ticket (just them)' : `${ticketsPer} tickets (them + ${ticketsPer - 1} guest${ticketsPer > 2 ? 's' : ''})`} = {maxRedemptions * ticketsPer} tickets total
               </Text>
 
-              {approvalMode === 'manual' ? (
-                <Text style={[styles.hint, { marginTop: 22 }]}>
-                  You'll choose how each creator gets tickets when you approve them: a promo code, the guest list, or by email.
-                </Text>
-              ) : (<>
+              {(<>
               <Text style={[styles.label, styles.labelGap]}>Ticket code <Text style={styles.req}>*</Text></Text>
               <Text style={styles.hint}>Creators enter this on your ticket site to get {ticketsPer} free {ticketsPer === 1 ? 'ticket' : 'tickets'}.</Text>
               <View style={styles.platformRow}>
@@ -438,7 +437,13 @@ export default function CreateCircuitScreen() {
                 </>
               )}
               </>)}
+              </>)}
 
+              {approvalMode === 'manual' && (
+                <Text style={[styles.hint, { marginTop: 22 }]}>
+                  You'll see everyone who's interested and choose who goes. When you approve someone, you pick how they get tickets: a promo code, the guest list, or by email.
+                </Text>
+              )}
             </>
           )}
 

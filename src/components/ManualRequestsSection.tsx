@@ -109,7 +109,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     <View style={{ marginBottom: 20 }}>
       <View style={st.headRow}>
         <Text style={st.title}>Interested creators</Text>
-        <Text style={st.count}>{filled} of {spots} picked</Text>
+        <Text style={st.count}>{spots ? `${filled} of ${spots} picked` : `${filled} picked`}</Text>
       </View>
       {deadline && (
         <Text style={st.sub}>
