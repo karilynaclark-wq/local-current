@@ -134,7 +134,7 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
 }
 
 const CIRCUIT_FIELDS =
-  'id, title, description, max_redemptions, event_at, created_at, is_active, min_followers, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
+  'id, title, description, max_redemptions, event_at, created_at, is_active, min_followers, approval_mode, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -188,7 +188,8 @@ serve(async (req) => {
     if (circuit.notified_threshold != null) return json({ sent: 0 }); // already announced
 
     const min = circuit.min_followers ?? 0;
-    const threshold = currentThreshold(min, circuit.created_at);
+    // "You pick" events have no follower minimum: tell every creator at once.
+    const threshold = (circuit as any).approval_mode === 'manual' ? 0 : currentThreshold(min, circuit.created_at);
     const sent = await notifyBand(db, circuit, threshold, null, false);
     await db.from('circuits').update({ notified_threshold: threshold }).eq('id', circuitId);
     return json({ sent });
