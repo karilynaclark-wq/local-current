@@ -125,9 +125,9 @@ async function currentPosted(db: SupabaseClient, id: string) {
   const min = ci.min_followers ?? 0;
   const top = STAGES.filter((v) => v >= min)[0] ?? min;
   const manual = ci.approval_mode === 'manual';
-  const code = manual ? `You pick creators${deadline ? ` by ${deadline}` : ''}` : ci.code_mode === 'list' ? 'Code: unique code per creator' : 'Code: one code for everyone';
   const deadline = ci.request_deadline
     ? new Date(ci.request_deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
+  const code = manual ? `You pick creators${deadline ? ` by ${deadline}` : ''}` : ci.code_mode === 'list' ? 'Code: unique code per creator' : 'Code: one code for everyone';
   const spots = ci.max_redemptions ?? 0;
   await send(r.email, `${ci.title} is live!`, layout({
     tag: 'Live', preview: "Here's what happens next.",
