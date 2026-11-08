@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { trackEvent } from '../../lib/analytics';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import DatePicker from '../../components/DatePicker';
 import { MIN_FOLLOWER_OPTIONS, minFollowersLabel } from '../../lib/eligibility';
 
 const FOLLOWER_RANGES = ['Under 1K', '1K–5K', '5K–10K', '10K–50K', '50K–100K', '100K+'];
@@ -18,13 +19,9 @@ const TIER_UPPER: Record<string, number> = {
   '10K–50K': 50_000, '50K–100K': 100_000, '100K+': Infinity,
 };
 const MAX_CREATORS = 50;
-const DEADLINE_OPTIONS = [
-  { label: '3 days', days: 3 }, { label: '5 days', days: 5 },
-  { label: '1 week', days: 7 }, { label: '2 weeks', days: 14 },
-];
-/** End of the day N days from now. */
-function deadlineIn(days: number): Date {
-  const d = new Date(); d.setDate(d.getDate() + days); d.setHours(23, 59, 0, 0); return d;
+/** 11:59 PM on the given day. */
+function endOfDay(d: Date): Date {
+  const x = new Date(d); x.setHours(23, 59, 0, 0); return x;
 }
 
 /** One code per line (commas also work); blanks and duplicates dropped. */
@@ -80,7 +77,7 @@ export default function CreateCircuitScreen() {
   const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
   const [approvalMode, setApprovalMode] = useState<'instant' | 'manual' | null>(null);
-  const [deadlineDays, setDeadlineDays] = useState<number>(7);
+  const [deadline, setDeadline] = useState<Date | null>(null);
   const [ticketsPer, setTicketsPer] = useState<number>(2); // creator + guests
   const guestCount = ticketsPer - 1;
   const [codeMode, setCodeMode] = useState<'shared' | 'list'>('shared');
@@ -110,7 +107,7 @@ export default function CreateCircuitScreen() {
     }
     if (s === 2) {
       if (!approvalMode) return 'Choose how creators get tickets.';
-      if (approvalMode === 'manual') return null; // just a deadline
+      if (approvalMode === 'manual') return deadline ? null : 'Pick a date to choose creators by.';
       if (minFollowing === null) return 'Please choose a minimum following.';
       if (!maxRedemptions || maxRedemptions < 1) return 'Please choose how many creators get tickets.';
       if (approvalMode === 'instant' && codeMode === 'shared' && !sharedCode.trim()) return 'Please add the ticket code creators will use.';
@@ -147,7 +144,7 @@ export default function CreateCircuitScreen() {
         redemption_type: 'code',
         code_mode: approvalMode === 'instant' ? codeMode : null,
         approval_mode: approvalMode,
-        request_deadline: approvalMode === 'manual' ? deadlineIn(deadlineDays).toISOString() : null,
+        request_deadline: approvalMode === 'manual' && deadline ? endOfDay(deadline).toISOString() : null,
         eligibility_min_followers: approvalMode === 'manual' ? '' : [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: approvalMode === 'manual' || selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: approvalMode === 'manual' ? null : Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
@@ -292,16 +289,12 @@ export default function CreateCircuitScreen() {
                 <>
                   <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
                   <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
-                  <View style={styles.chips}>
-                    {DEADLINE_OPTIONS.map(o => (
-                      <TouchableOpacity key={o.days} style={[styles.chip, deadlineDays === o.days && styles.chipSelected]} onPress={() => setDeadlineDays(o.days)}>
-                        <Text style={[styles.chipText, deadlineDays === o.days && styles.chipTextSelected]}>{o.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <Text style={[styles.hint, { marginTop: -12 }]}>
-                    Deadline: {deadlineIn(deadlineDays).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                  </Text>
+                  <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />
+                  {deadline && (
+                    <Text style={[styles.hint, { marginTop: 8 }]}>
+                      Deadline: {deadline.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at 11:59 PM
+                    </Text>
+                  )}
                 </>
               )}
 
