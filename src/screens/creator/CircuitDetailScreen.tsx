@@ -615,7 +615,7 @@ export default function CircuitDetailScreen() {
         {/* ── Requested: waiting on the business ── */}
         {isRequested && (
           <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>{isManual ? "You're on the list 🙌" : 'Request sent 🙌'}</Text>
+            <Text style={styles.stateTitle}>{isManual ? "You're on the waitlist" : 'Request sent 🙌'}</Text>
             {isManual ? (
               <Text style={styles.stepText}>
                 {circuit.business?.business_name ?? 'The business'} picks creators
