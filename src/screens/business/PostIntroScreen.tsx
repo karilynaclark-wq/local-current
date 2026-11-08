@@ -5,8 +5,8 @@ import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 
 const STEPS: { num: number; title: string; desc: string }[] = [
-  { num: 1, title: 'Post your event', desc: 'Add your ticket link and a promo code.' },
-  { num: 2, title: 'Creators claim', desc: 'Verified local creators get 2 free tickets each.' },
+  { num: 1, title: 'Post your event', desc: 'Add your event link and how many free tickets each creator gets.' },
+  { num: 2, title: 'Creators claim or you pick', desc: 'Let verified local creators claim instantly with a promo code, or review who\'s interested and pick who goes.' },
   { num: 3, title: 'They go and post', desc: 'An honest video on TikTok or Instagram within 48 hours.' },
   { num: 4, title: 'See the results', desc: 'Views and engagement for every post, in one place.' },
 ];

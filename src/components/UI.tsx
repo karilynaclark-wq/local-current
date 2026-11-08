@@ -45,7 +45,7 @@ export function Button({ label, onPress, disabled, loading, variant = 'primary',
 // ─── Status Chip ─────────────────────────────────────────────────────────────
 type StatusVariant =
   | 'active' | 'completed' | 'claimed' | 'inactive' | 'redeemed'
-  | 'requested' | 'approved' | 'declined' | 'expired' | 'withdrawn';
+  | 'requested' | 'approved' | 'declined' | 'expired' | 'withdrawn' | 'released' | 'picked';
 interface ChipProps { status: StatusVariant; style?: ViewStyle; }
 const CHIP_COLORS: Record<StatusVariant, { bg: string; text: string; dot: string }> = {
   active:    { bg: C.okSoft,    text: C.ok,          dot: C.ok },
@@ -58,6 +58,8 @@ const CHIP_COLORS: Record<StatusVariant, { bg: string; text: string; dot: string
   declined:  { bg: C.line,      text: C.muted,       dot: C.muted2 },
   expired:   { bg: C.line,      text: C.muted,       dot: C.muted2 },
   withdrawn: { bg: C.line,      text: C.muted,       dot: C.muted2 },
+  released:  { bg: C.line,      text: C.muted,       dot: C.muted2 },
+  picked:    { bg: C.okSoft,    text: C.ok,          dot: C.ok },
 };
 export function StatusChip({ status, style }: ChipProps) {
   const col = CHIP_COLORS[status] ?? CHIP_COLORS.inactive;

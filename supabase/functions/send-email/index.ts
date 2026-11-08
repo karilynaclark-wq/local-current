@@ -66,11 +66,11 @@ async function creatorSignup(db: SupabaseClient, id: string) {
       await send(r.email, "You're in! Here's how to get your first tickets", layout({
         tag: 'Chicago', preview: 'Free tickets to Chicago events. Claim, go, post.',
         body: hi(`Welcome, ${esc(r.first)}. You're in.`) +
-          p('Chicago businesses give creators like you 2 free tickets to their events, one for you and one for a friend. All they ask for is an honest video. Here\'s how it works:') +
+          p('Chicago businesses give creators like you free tickets to their events. All they ask for is an honest video. Here\'s how it works:') +
           ol([
-            ['Claim.', 'When an event opens up to you, tap Claim tickets. You\'ll get a code for 2 free tickets.'],
-            ['Grab your tickets.', 'Use the code on the business\'s ticket site, then tap "I got my tickets" in the app.'],
-            ['Go.', 'Bring a friend and have fun.'],
+            ['Claim or ask.', 'Some events you claim instantly and get a code. On others, tap "I\'m interested" and the business picks who goes.'],
+            ['Grab your tickets.', 'Use your code, get added to the guest list, or get them by email, then confirm in the app.'],
+            ['Go.', 'Bring your friends (if your tickets include them) and have fun.'],
             ['Post.', 'Within 48 hours, share an honest video on TikTok or Instagram, tag the business, and add #localcurrentapp.'],
           ]) +
           fine('One thing to know: bigger accounts see each event first, and every 24 hours it opens to the next group. Turn on notifications so you catch yours.') +
@@ -99,8 +99,8 @@ async function businessSignup(db: SupabaseClient, id: string) {
           p('Influencer marketing has gotten complicated and expensive. On top of running your business, you\'re expected to be an expert in finding creators, negotiating, and tracking results. After 7 years in the space, I built Local Current to make it seamless.') +
           p('Here\'s how it works:') +
           ol([
-            ['Post an event.', 'Add the date, your ticket link, creator criteria, and a redemption code.'],
-            ['Creators claim.', 'Verified Chicago creators grab your code and get their tickets.'],
+            ['Post an event.', 'Add your event link and how many free tickets each creator gets.'],
+            ['Creators claim, or you pick.', 'Let verified Chicago creators claim instantly with your promo code, or review who\'s interested and choose who goes.'],
             ['They post.', 'Each one shares an honest video on TikTok or Instagram within 48 hours.'],
             ['Track performance in the app, automatically.', 'See how many people saw and engaged with each video.'],
           ]) +
@@ -252,15 +252,27 @@ async function report(db: SupabaseClient, id: string) {
 const tickets = (ci: any) => (ci.guest_count ?? 1) + 1;
 const ticketWord = (n: number) => `${n} ticket${n === 1 ? '' : 's'}`;
 const CONFIRM_HOURS = 72;
+const H = 3_600_000;
+/** When an approved creator must tap "Got it!": 72h after approval, or 6h before
+ *  the event if that's sooner — but never less than 3h after approval. */
+function confirmBy(respondedAt: string, eventAt?: string | null, goingOn?: string | null): Date {
+  const resp = new Date(respondedAt).getTime();
+  const start = eventAt ? new Date(eventAt).getTime() : goingOn ? new Date(`${goingOn}T12:00:00-06:00`).getTime() : null;
+  let t = resp + CONFIRM_HOURS * H;
+  if (start != null) t = Math.min(t, Math.max(resp + 3 * H, start - 6 * H));
+  return new Date(t);
+}
+const fmtWhen = (d: Date) => d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
 
 async function approved(db: SupabaseClient, id: string) {
   const { data: red } = await db.from('redemptions')
-    .select('id, creator_id, circuit_id, code, delivery_method, going_on').eq('id', id).single();
+    .select('id, creator_id, circuit_id, code, delivery_method, going_on, responded_at').eq('id', id).single();
   if (!red?.delivery_method || !(await once(db, `ap:${id}`))) return;
   const [ci, c] = await Promise.all([circuitInfo(db, red.circuit_id), creatorInfo(db, red.creator_id)]);
   if (!ci || !c) return;
   const bizName = ci.business?.business_name ?? 'The business';
   const n = tickets(ci);
+  const by = fmtWhen(confirmBy(red.responded_at ?? new Date().toISOString(), ci.event_at, red.going_on));
   const r = await recipient(db, c.profile_id);
 
   const how =
@@ -270,16 +282,16 @@ async function approved(db: SupabaseClient, id: string) {
         ? p(`You're on the guest list under ${b(c.profile?.full_name || c.name)}${n > 1 ? ` (+${n - 1})` : ''}. Show your ID at the door.`)
         : p(`${esc(bizName)} will email your ${ticketWord(n)} to ${b(r?.email ?? 'your email')}. Keep an eye on your inbox (and spam folder).`);
 
-  await pushTo(db, c.profile_id, "You're in! 🎟️", `${bizName} picked you for ${ci.title}. Tap "Got it!" within 72 hours to keep your spot.`,
+  await pushTo(db, c.profile_id, "You're in! 🎟️", `${bizName} picked you for ${ci.title}. Tap "Got it!" by ${by} to keep your spot.`,
     { url: `localcurrent://event/${ci.id}` });
   if (r) {
     await send(r.email, `You're going to ${ci.title}!`, layout({
-      tag: "You're in", preview: `${bizName} picked you. Confirm within 72 hours to keep your spot.`,
+      tag: "You're in", preview: `${bizName} picked you. Confirm by ${by} to keep your spot.`,
       body: hi(`You got picked, ${esc(r.first)}!`) +
         p(`${b(bizName)} chose you for ${b(ci.title)}.`) +
         (red.going_on ? p(`You're going ${b(new Date(`${red.going_on}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}.`) : '') +
         how +
-        p(`<strong>Tap "Got it!" in the app within 72 hours</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
+        p(`<strong>Tap "Got it!" in the app by ${esc(by)}</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
         btn('Got it!', appLink(`event/${ci.id}`)) +
         p('<strong>For your post</strong>') +
         ul([
@@ -339,15 +351,31 @@ async function manualHourly(db: SupabaseClient): Promise<number> {
     sent++;
   }
 
+  // 2b) Still unpicked 24h after the deadline → one more nudge
+  const { data: late } = await db.from('circuits')
+    .select('id, title, event_at, business:businesses(profile_id)')
+    .eq('approval_mode', 'manual').not('deadline_notified', 'is', null)
+    .lt('request_deadline', new Date(now - 24 * H).toISOString());
+  for (const ci of (late ?? []) as any[]) {
+    if (ci.event_at && new Date(ci.event_at).getTime() < now) continue;
+    const { count } = await db.from('redemptions').select('id', { count: 'exact', head: true })
+      .eq('circuit_id', ci.id).eq('status', 'requested');
+    if (!count || !(await once(db, `dl2:${ci.id}`))) continue;
+    await pushTo(db, ci.business.profile_id, 'Creators are waiting',
+      `${count} creator${count === 1 ? ' is' : 's are'} still waiting to hear about ${ci.title}.`, { url: `localcurrent://manage/${ci.id}` });
+    sent++;
+  }
+
   // 3) Approved but no "Got it!" → reminder at 48h, release at 72h
   const { data: pending } = await db.from('redemptions')
-    .select('id, responded_at, creator_id, circuit_id, circuit:circuits(id, title, business:businesses(profile_id))')
+    .select('id, responded_at, going_on, creator_id, circuit_id, circuit:circuits(id, title, event_at, business:businesses(profile_id))')
     .eq('status', 'approved').not('delivery_method', 'is', null).is('confirmed_at', null);
   for (const r of (pending ?? []) as any[]) {
-    const age = (now - new Date(r.responded_at).getTime()) / 3_600_000;
+    const due = confirmBy(r.responded_at, r.circuit.event_at, r.going_on).getTime();
+    const left = (due - now) / H;
     const { data: c } = await db.from('creators').select('profile_id, tiktok_handle, instagram_handle').eq('id', r.creator_id).single();
     if (!c) continue;
-    if (age >= CONFIRM_HOURS) {
+    if (left <= 0) {
       await db.from('redemptions').update({ status: 'expired' }).eq('id', r.id);
       await pushTo(db, c.profile_id, 'Tickets released',
         `We didn't hear back, so your tickets to ${r.circuit.title} went to another creator.`, { url: 'localcurrent://home' });
@@ -355,9 +383,9 @@ async function manualHourly(db: SupabaseClient): Promise<number> {
         `${at(c.tiktok_handle || c.instagram_handle) || 'A creator'} didn't confirm for ${r.circuit.title}. Pick someone else.`,
         { url: `localcurrent://manage/${r.circuit.id}` });
       sent++;
-    } else if (age >= 48 && (await once(db, `cf48:${r.id}`))) {
+    } else if (left <= 24 && (due - new Date(r.responded_at).getTime()) / H > 30 && (await once(db, `cf48:${r.id}`))) {
       await pushTo(db, c.profile_id, 'Confirm your tickets',
-        `Tap "Got it!" for ${r.circuit.title} in the next day or your tickets go to another creator.`,
+        `Tap "Got it!" for ${r.circuit.title} by ${fmtWhen(new Date(due))} or your tickets go to another creator.`,
         { url: `localcurrent://event/${r.circuit.id}` });
       sent++;
     }
@@ -469,11 +497,11 @@ async function sendTest(to: string) {
   await send(to, "[Test] You're in! Here's how to get your first tickets", layout({
     tag: 'Chicago', preview: 'Free tickets to Chicago events. Claim, go, post.',
     body: hi("Welcome, Kari. You're in.") +
-      p("Chicago businesses give creators like you 2 free tickets to their events, one for you and one for a friend. All they ask for is an honest video. Here's how it works:") +
+      p("Chicago businesses give creators like you free tickets to their events. All they ask for is an honest video. Here's how it works:") +
       ol([
-        ['Claim.', "When an event opens up to you, tap Claim tickets. You'll get a code for 2 free tickets."],
-        ['Grab your tickets.', 'Use the code on the business\'s ticket site, then tap "I got my tickets" in the app.'],
-        ['Go.', 'Bring a friend and have fun.'],
+        ['Claim or ask.', 'Some events you claim instantly and get a code. On others, tap "I\'m interested" and the business picks who goes.'],
+        ['Grab your tickets.', 'Use your code, get added to the guest list, or get them by email, then confirm in the app.'],
+        ['Go.', 'Bring your friends (if your tickets include them) and have fun.'],
         ['Post.', 'Within 48 hours, share an honest video on TikTok or Instagram, tag the business, and add #localcurrentapp.'],
       ]) + btn('Browse events'),
   }));

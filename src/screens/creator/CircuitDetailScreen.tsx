@@ -163,6 +163,7 @@ export default function CircuitDetailScreen() {
   const [myEmail, setMyEmail] = useState('');
   const [otherEvents, setOtherEvents] = useState<Circuit[]>([]);
   const [goingOn, setGoingOn] = useState<string | null>(null);
+  const [respondedAt, setRespondedAt] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(false);
   const [pickDates, setPickDates] = useState<Date[]>([]);
   const [prefNote, setPrefNote] = useState('');
@@ -216,6 +217,7 @@ export default function CircuitDetailScreen() {
                 setDeliveryMethod(existing.delivery_method ?? null);
                 setConfirmedAt(existing.confirmed_at ?? null);
                 setGoingOn(existing.going_on ?? null);
+                setRespondedAt(existing.responded_at ?? null);
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
               }
@@ -263,6 +265,11 @@ export default function CircuitDetailScreen() {
     }
   }
 
+  async function notifyBusiness(title: string, body: string) {
+    const { data: biz } = await supabase.from('businesses').select('profile_id').eq('id', circuit.business_id).single();
+    if (biz?.profile_id) notifyUser(biz.profile_id, title, body, { url: `localcurrent://manage/${circuit.id}` });
+  }
+
   async function handleConfirm() {
     if (!redemptionId) return;
     setConfirming(true);
@@ -272,8 +279,10 @@ export default function CircuitDetailScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     trackEvent('tickets_confirmed', { circuit_id: circuit.id, method: deliveryMethod });
     setConfirmedAt(new Date().toISOString());
+    notifyBusiness('Creator confirmed ✅', `${creatorName || 'A creator'} confirmed for ${circuit.title}${goingStr ? ` on ${goingStr}` : ''}.`);
     // Guest list / email: nothing to buy, so they're set once confirmed.
-    if (deliveryMethod !== 'code' && (eventAt || goingDate)) handleBooked();
+    // Date known → confirming is the only step (no separate "I got my tickets").
+    if (eventAt || goingDate) handleBooked();
   }
 
   useEffect(() => {
@@ -354,6 +363,9 @@ export default function CircuitDetailScreen() {
       const { error } = await supabase.rpc('withdraw_request', { p_redemption_id: redemptionId });
       if (error) throw error;
       trackEvent('claim_withdrawn', { circuit_id: circuit.id });
+      if (isManual && redemptionStatus === 'approved') {
+        notifyBusiness('A spot opened up', `${creatorName || 'A creator'} can't make ${circuit.title} anymore. Pick someone else.`);
+      }
       setRedemptionStatus('cancelled');
       setShowUnclaimModal(false);
     } catch (e: any) {
@@ -447,6 +459,18 @@ export default function CircuitDetailScreen() {
   const eventAt = circuit.event_at ? new Date(circuit.event_at) : null;
   // Recurring "You pick": the date the business confirmed (9 PM local anchors the post window)
   const goingDate = goingOn ? new Date(`${goingOn}T21:00:00`) : null;
+  // Same rule as the server: 72h, or 6h before the event if sooner (min 3h after approval).
+  const confirmBy = (() => {
+    if (!respondedAt) return null;
+    const resp = new Date(respondedAt).getTime(), H = 3_600_000;
+    const start = eventAt ? eventAt.getTime() : goingDate ? goingDate.getTime() - 9 * H : null;
+    let t = resp + 72 * H;
+    if (start != null) t = Math.min(t, Math.max(resp + 3 * H, start - 6 * H));
+    return new Date(t);
+  })();
+  const confirmByStr = confirmBy
+    ? confirmBy.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '72 hours';
   const goingStr = goingDate ? goingDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : null;
   const eventDateStr = eventAt
     ? eventAt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
@@ -596,19 +620,14 @@ export default function CircuitDetailScreen() {
               <Text style={styles.stepText}>
                 {circuit.business?.business_name ?? 'The business'} picks creators
                 {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
-                We'll notify you if you're picked. You'll then have 72 hours to confirm.
-              </Text>
-            ) : (<>
-            <Text style={styles.stepText}>
-              {circuit.business?.business_name ?? 'The business'} will review your profile and respond within 48 hours.
-              If they approve, you'll get a notification with everything you need to attend.
-            </Text>
-            {requestExpiresAt ? (
-              <Text style={styles.stepNote}>
-                Expires {new Date(requestExpiresAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })} if there's no response.
+                We'll notify you if you're picked, and you'll have up to 72 hours to confirm.
               </Text>
             ) : null}
-            </>)}
+            {isManual && circuit.request_deadline && new Date(circuit.request_deadline) < new Date() ? (
+              <Text style={styles.stepNote}>
+                The deadline has passed. Waiting on {circuit.business?.business_name ?? 'the business'} to pick.
+              </Text>
+            ) : null}
           </View>
         )}
 
@@ -686,7 +705,7 @@ export default function CircuitDetailScreen() {
             )}
             {!confirmedAt ? (
               <Text style={[styles.stepNote, { color: '#92400E' }]}>
-                Tap "Got it!" within 72 hours to keep your spot, or your tickets go to another creator.
+                Tap "Got it!" by {confirmByStr} to keep your spot, or your tickets go to another creator.
               </Text>
             ) : (
               <Text style={[styles.stepNote, { color: C.ok }]}>Confirmed. See you there!</Text>
@@ -898,7 +917,7 @@ export default function CircuitDetailScreen() {
           <TouchableOpacity style={[styles.button, confirming && styles.buttonDisabled]} onPress={handleConfirm} disabled={confirming}>
             <Text style={styles.buttonText}>{confirming ? 'Confirming…' : 'Got it!'}</Text>
           </TouchableOpacity>
-        ) : isApproved && isManual && deliveryMethod && deliveryMethod !== 'code' && (eventAt || goingDate) ? null
+        ) : isApproved && isManual && deliveryMethod && (eventAt || goingDate) ? null
         : isApproved ? (
           <TouchableOpacity
             style={[styles.button, booking && styles.buttonDisabled]}

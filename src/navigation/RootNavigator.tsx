@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { trackScreen } from '../lib/analytics';
@@ -339,7 +340,14 @@ export default function RootNavigator() {
     const take = (url: string | null) => { const l = url && parseDeepLink(url); if (l) pendingLink.current = l; flushRef.current(); };
     Linking.getInitialURL().then(take);
     const sub = Linking.addEventListener('url', ({ url }) => take(url));
-    return () => sub.remove();
+    // Tapping a push notification: its data.url is a localcurrent:// link.
+    const urlOf = (r: Notifications.NotificationResponse | null) => {
+      const u = r?.notification.request.content.data?.url;
+      return typeof u === 'string' ? u : null;
+    };
+    Notifications.getLastNotificationResponseAsync().then(r => take(urlOf(r))).catch(() => {});
+    const pushSub = Notifications.addNotificationResponseReceivedListener(r => take(urlOf(r)));
+    return () => { sub.remove(); pushSub.remove(); };
   }, []);
   const tabsShowing = !!session && !!profile && (profile.role === 'business' ? !!hasBusiness : creatorStatus === 'approved' || creatorStatus === 'pending');
   function flush() {

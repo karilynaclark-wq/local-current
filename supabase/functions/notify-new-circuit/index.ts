@@ -96,13 +96,22 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
       if (!r) continue;
       const biz = circuit.business?.business_name || 'A local business';
       const spots = circuit.max_redemptions ?? 0;
+      const n = ((circuit as any).guest_count ?? 1) + 1;
+      const tix = `${n} free ticket${n === 1 ? '' : 's'}`;
+      const withWho = n === 1 ? '' : n === 2 ? ' One for you, one for a friend.' : ` For you and ${n - 1} friends.`;
+      const manual = (circuit as any).approval_mode === 'manual';
+      const by = (circuit as any).request_deadline
+        ? new Date((circuit as any).request_deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
       await send(r.email, `Free tickets: ${circuit.title}`, layout({
-        tag: 'New event', preview: `${biz} is giving 2 tickets to ${spots} creators. Want in?`,
+        tag: 'New event', preview: manual ? `${biz} is picking creators${by ? ` by ${by}` : ''}. Want in?` : `${biz} is giving ${tix} to ${spots} creators. Want in?`,
         body: hi(`Hi ${esc(r.first)}, want to go?`) +
-          p(`${b(biz)} wants to give you 2 free tickets to ${b(circuit.title)}. One for you, one for a friend.`) +
-          card(esc(biz), esc(circuit.title), esc(circuit.description ?? ''), `${spots} spots`) +
-          p(`Only ${spots} creators get in, and it's first come, first served. If you want it, grab it.`) +
-          btn('Claim tickets', appLink(`event/${circuit.id}`)),
+          p(`${b(biz)} wants to give ${tix} to ${b(circuit.title)}.${withWho}`) +
+          card(esc(biz), esc(circuit.title), esc(circuit.description ?? ''), manual ? 'They pick' : `${spots} spots`) +
+          (manual
+            ? p(`${esc(biz)} is choosing who goes${by ? ` by ${esc(by)}` : ''}. Tap "I'm interested" to put your name in.`) +
+              btn("I'm interested", appLink(`event/${circuit.id}`))
+            : p(`Only ${spots} creators get in, and it's first come, first served. If you want it, grab it.`) +
+              btn('Claim tickets', appLink(`event/${circuit.id}`))),
         footer: await prefsFooter("You're getting this because events are open to your tier.", c.profile_id),
       }));
     } catch (e) { console.error('email 03', e); }
@@ -114,12 +123,20 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
     ? new Date(circuit.event_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
     : null;
   const what = `"${circuit.title}"${eventDate ? ` on ${eventDate}` : ''}`;
+  const n = ((circuit as any).guest_count ?? 1) + 1;
+  const tix = `${n} ticket${n === 1 ? '' : 's'}`;
+  const manual = (circuit as any).approval_mode === 'manual';
+  const by = (circuit as any).request_deadline
+    ? new Date((circuit as any).request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
   const messages = tokens.map((to) => ({
     to,
     title: 'Free tickets 🎟️',
-    body: opened
-      ? `${businessName}: ${what} just opened to you. Claim 2 tickets before they're gone.`
-      : `${businessName}: ${what}. Claim 2 tickets before they're gone.`,
+    body: manual
+      ? `${businessName} is picking creators for ${what}. Tap "I'm interested"${by ? ` by ${by}` : ''}.`
+      : opened
+        ? `${businessName}: ${what} just opened to you. Claim ${tix} before they're gone.`
+        : `${businessName}: ${what}. Claim ${tix} before they're gone.`,
+    data: { url: `localcurrent://event/${circuit.id}` },
     sound: 'default',
   }));
   // Expo accepts up to 100 messages per request.
@@ -134,7 +151,7 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
 }
 
 const CIRCUIT_FIELDS =
-  'id, title, description, max_redemptions, event_at, created_at, is_active, min_followers, approval_mode, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
+  'id, title, description, max_redemptions, event_at, created_at, is_active, min_followers, approval_mode, request_deadline, guest_count, event_link, notified_threshold, required_platform, eligibility_niches, business:businesses(business_name, profile_id)';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

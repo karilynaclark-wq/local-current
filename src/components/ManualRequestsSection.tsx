@@ -87,11 +87,11 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     setApproving(null);
     onChanged();
     if (method === 'guest_list') {
-      Alert.alert('Approved', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have 72 hours to confirm.`);
+      Alert.alert('Approved', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have up to 72 hours to confirm.`);
     } else if (method === 'email') {
-      Alert.alert('Approved', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have 72 hours to confirm.`);
+      Alert.alert('Approved', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have up to 72 hours to confirm.`);
     } else {
-      Alert.alert('Approved', `${who} has the code. They have 72 hours to confirm.`);
+      Alert.alert('Approved', `${who} has the code. They have up to 72 hours to confirm.`);
     }
   }
 
@@ -184,7 +184,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
               </View>
             );
           })}
-          <Text style={st.sub}>Creators have 72 hours to confirm. If they don't, the spot opens back up.</Text>
+          <Text style={st.sub}>Creators have up to 72 hours to confirm. If they don't, the spot opens back up.</Text>
         </>
       )}
 

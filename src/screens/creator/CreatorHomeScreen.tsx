@@ -52,6 +52,7 @@ export default function CreatorHomeScreen() {
   const [creatorFollowers, setCreatorFollowers] = useState<PlatformFollowerMap>({});
   const [creatorCounts, setCreatorCounts] = useState<PlatformCountMap>({});
   const [redemptionMap, setRedemptionMap] = useState<Record<string, { status: string; hasPost: boolean }>>({});
+  const mapRef = React.useRef<Record<string, { status: string; hasPost: boolean }>>({});
   const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
 
   useEffect(() => { loadCreatorAndCircuits(); }, []);
@@ -84,6 +85,7 @@ export default function CreatorHomeScreen() {
             map[r.circuit_id] = { status: r.status, hasPost: (r.posts?.length ?? 0) > 0 };
           }
           setRedemptionMap(map);
+          mapRef.current = map;
         }
       }
       const now = new Date().toISOString();
@@ -94,7 +96,11 @@ export default function CreatorHomeScreen() {
         .or(`expires_at.is.null,expires_at.gt.${now}`)
         .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
-      setCircuits(data ?? []);
+      // "You pick" events leave Browse once their pick-by deadline passes
+      // (unless this creator already asked — they still see it here).
+      setCircuits((data ?? []).filter((c: any) =>
+        !(c.approval_mode === 'manual' && c.request_deadline && new Date(c.request_deadline) < new Date())
+        || !!mapRef.current[c.id]));
     } catch (e: any) {
       setError('Could not load currents. Pull down to try again.');
     } finally {
@@ -163,13 +169,18 @@ export default function CreatorHomeScreen() {
         renderItem={({ item, section }) => {
           const raw = redemptionMap[item.id];
           // Withdrawn/expired requests can be requested again: show like a fresh current.
-          const redemption = raw && (raw.status === 'cancelled' || raw.status === 'expired') ? undefined : raw;
+          // ("You pick" releases stay visible as "expired": they can't ask again.)
+          const redemption = raw && (raw.status === 'cancelled' || (raw.status === 'expired' && item.approval_mode !== 'manual')) ? undefined : raw;
           const fullyDone = redemption?.status === 'completed' && redemption?.hasPost;
           if (fullyDone) return null; // hide only after redemption + post both complete
           const neighborhood = neighborhoodFromAddress(item.business?.address);
           let chipStatus: RequestChip | 'active' | undefined;
           if (redemption) {
             chipStatus = requestChipFor(redemption.status, redemption.hasPost);
+            if (item.approval_mode === 'manual') {
+              if (redemption.status === 'expired') chipStatus = 'released' as any;
+              else if (redemption.status === 'approved') chipStatus = 'picked' as any;
+            }
           } else if (section.eligible) {
             chipStatus = 'active';
           }

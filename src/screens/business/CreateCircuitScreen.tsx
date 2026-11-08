@@ -123,12 +123,12 @@ export default function CreateCircuitScreen() {
     }
     if (s === 2) {
       if (!approvalMode) return 'Choose how creators get tickets.';
+      if (!scheduleType) return 'Tell creators when the event is.';
+      if (scheduleType === 'one_time') {
+        if (!eventDay) return 'Pick the event date.';
+        if (!parseTime(eventTime)) return 'Add the start time, like 8:00 PM.';
+      }
       if (approvalMode === 'manual') {
-        if (!scheduleType) return 'Tell creators when the event is.';
-        if (scheduleType === 'one_time') {
-          if (!eventDay) return 'Pick the event date.';
-          if (!parseTime(eventTime)) return 'Add the start time, like 8:00 PM.';
-        }
         if (scheduleType === 'recurring') {
           if (anyDate === null) return 'Choose which dates creators can pick.';
           if (anyDate === false && !scheduleNote.trim()) return 'Tell creators which days or times you prefer.';
@@ -174,9 +174,9 @@ export default function CreateCircuitScreen() {
         code_mode: approvalMode === 'instant' ? codeMode : null,
         approval_mode: approvalMode,
         request_deadline: approvalMode === 'manual' && deadline ? endOfDay(deadline).toISOString() : null,
-        schedule_type: approvalMode === 'manual' ? scheduleType : null,
+        schedule_type: scheduleType,
         schedule_note: approvalMode === 'manual' && scheduleType === 'recurring' && anyDate === false ? scheduleNote.trim() : null,
-        event_at: approvalMode === 'manual' && scheduleType === 'one_time' && eventDay && parseTime(eventTime)
+        event_at: scheduleType === 'one_time' && eventDay && parseTime(eventTime)
           ? (() => { const d = new Date(eventDay); const [h, m] = parseTime(eventTime)!; d.setHours(h, m, 0, 0); return d.toISOString(); })()
           : null,
         eligibility_min_followers: approvalMode === 'manual' ? '' : [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
@@ -321,6 +321,18 @@ export default function CreateCircuitScreen() {
 
               {approvalMode === 'manual' && (
                 <>
+                  <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
+                  <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
+                  <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />
+                  {deadline && (
+                    <Text style={[styles.hint, { marginTop: 8 }]}>
+                      Deadline: {deadline.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at 11:59 PM
+                    </Text>
+                  )}
+                </>
+              )}
+
+              {approvalMode && (<>
                   <Text style={[styles.label, styles.labelGap]}>When is it? <Text style={styles.req}>*</Text></Text>
                   <View style={styles.platformRow}>
                     {([['one_time', 'One time'], ['recurring', 'Recurring / multiple dates']] as const).map(([val, label]) => (
@@ -339,7 +351,10 @@ export default function CreateCircuitScreen() {
                     </View>
                   )}
 
-                  {scheduleType === 'recurring' && (
+                  {scheduleType === 'recurring' && approvalMode === 'instant' && (
+                    <Text style={[styles.hint, { marginTop: 10 }]}>Creators pick a date from your event page and tell us which day they're going.</Text>
+                  )}
+                  {scheduleType === 'recurring' && approvalMode === 'manual' && (
                     <View style={{ marginTop: 14, gap: 10 }}>
                       {([[true, 'Any date on our event page', 'Creators pick dates that work for them from your event page.'],
                          [false, 'We prefer certain days or times', 'Tell creators what works best for you.']] as const).map(([val, label, sub]) => {
@@ -362,16 +377,7 @@ export default function CreateCircuitScreen() {
                     </View>
                   )}
 
-                  <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
-                  <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
-                  <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />
-                  {deadline && (
-                    <Text style={[styles.hint, { marginTop: 8 }]}>
-                      Deadline: {deadline.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at 11:59 PM
-                    </Text>
-                  )}
-                </>
-              )}
+              </>)}
 
               {approvalMode && (<>
                 <Text style={[styles.label, styles.labelGap]}>How many tickets does each creator get? <Text style={styles.req}>*</Text></Text>
