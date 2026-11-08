@@ -130,6 +130,19 @@ export async function send(to: string, subject: string, html: string) {
   if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }
 
+/** Push notification to one user (token looked up server-side). Never throws. */
+export async function pushTo(db: SupabaseClient, profileId: string, title: string, body: string, data: Record<string, unknown> = {}) {
+  try {
+    const { data: p } = await db.from('profiles').select('push_token').eq('id', profileId).single();
+    const to = p?.push_token;
+    if (!to || !/^Expo(nent)?PushToken\[/.test(to)) return;
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify([{ to, title, body, data, sound: 'default' }]),
+    });
+  } catch { /* non-critical */ }
+}
+
 /** Plain admin note (emails 14–15): no branding, just the facts. */
 export async function sendAdmin(subject: string, lines: string[]) {
   const html = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#1C1917">${lines.map((l) => `<div>${l}</div>`).join('')}</div>`;

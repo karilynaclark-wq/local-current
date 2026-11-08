@@ -18,6 +18,14 @@ const TIER_UPPER: Record<string, number> = {
   '10K–50K': 50_000, '50K–100K': 100_000, '100K+': Infinity,
 };
 const MAX_CREATORS = 50;
+const DEADLINE_OPTIONS = [
+  { label: '3 days', days: 3 }, { label: '5 days', days: 5 },
+  { label: '1 week', days: 7 }, { label: '2 weeks', days: 14 },
+];
+/** End of the day N days from now. */
+function deadlineIn(days: number): Date {
+  const d = new Date(); d.setDate(d.getDate() + days); d.setHours(23, 59, 0, 0); return d;
+}
 
 /** One code per line (commas also work); blanks and duplicates dropped. */
 function parseCodes(raw: string): string[] {
@@ -71,7 +79,10 @@ export default function CreateCircuitScreen() {
   // Step 2
   const [maxRedemptions, setMaxRedemptions] = useState<number>(4);
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
-  const guestCount = 1; // every creator gets 2 tickets: them + a friend
+  const [approvalMode, setApprovalMode] = useState<'instant' | 'manual'>('instant');
+  const [deadlineDays, setDeadlineDays] = useState<number>(7);
+  const [ticketsPer, setTicketsPer] = useState<number>(2); // creator + guests
+  const guestCount = ticketsPer - 1;
   const [codeMode, setCodeMode] = useState<'shared' | 'list'>('shared');
   const [sharedCode, setSharedCode] = useState('');
   const [codeList, setCodeList] = useState('');
@@ -100,8 +111,8 @@ export default function CreateCircuitScreen() {
     if (s === 2) {
       if (minFollowing === null) return 'Please choose a minimum following.';
       if (!maxRedemptions || maxRedemptions < 1) return 'Please choose how many creators get tickets.';
-      if (codeMode === 'shared' && !sharedCode.trim()) return 'Please add the ticket code creators will use.';
-      if (codeMode === 'list' && parsedCodes.length < maxRedemptions)
+      if (approvalMode === 'instant' && codeMode === 'shared' && !sharedCode.trim()) return 'Please add the ticket code creators will use.';
+      if (approvalMode === 'instant' && codeMode === 'list' && parsedCodes.length < maxRedemptions)
         return `Please add at least ${maxRedemptions} codes, one for each creator (you have ${parsedCodes.length}).`;
     }
     return null;
@@ -132,7 +143,9 @@ export default function CreateCircuitScreen() {
         event_link: eventLink.trim() || null,
         description,
         redemption_type: 'code',
-        code_mode: codeMode,
+        code_mode: approvalMode === 'instant' ? codeMode : null,
+        approval_mode: approvalMode,
+        request_deadline: approvalMode === 'manual' ? deadlineIn(deadlineDays).toISOString() : null,
         eligibility_min_followers: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
@@ -146,9 +159,10 @@ export default function CreateCircuitScreen() {
 
       if (error) throw error;
 
-      const codes = codeMode === 'shared' ? [sharedCode.trim()] : parsedCodes;
-      const { error: codeErr } = await supabase.from('circuit_codes')
-        .insert(codes.map(code => ({ circuit_id: circuit.id, code })));
+      const codes = approvalMode === 'manual' ? [] : codeMode === 'shared' ? [sharedCode.trim()] : parsedCodes;
+      const { error: codeErr } = codes.length
+        ? await supabase.from('circuit_codes').insert(codes.map(code => ({ circuit_id: circuit.id, code })))
+        : { error: null };
       if (codeErr) {
         await supabase.from('circuits').delete().eq('id', circuit.id);
         throw codeErr;
@@ -161,6 +175,8 @@ export default function CreateCircuitScreen() {
         circuit_id: circuit.id,
         flow: 'ticket',
         code_mode: codeMode,
+        approval_mode: approvalMode,
+        tickets_per_creator: ticketsPer,
         max_redemptions: maxRedemptions,
         follower_ranges: [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))],
       });
@@ -223,7 +239,7 @@ export default function CreateCircuitScreen() {
               />
 
               <Text style={styles.label}>Ticket link *</Text>
-              <Text style={styles.hint}>Where creators buy tickets with your code.</Text>
+              <Text style={styles.hint}>Your event or ticket page.</Text>
               <TextInput
                 style={styles.input}
                 value={eventLink}
@@ -251,7 +267,43 @@ export default function CreateCircuitScreen() {
           {/* ── STEP 2 ── */}
           {step === 2 && (
             <>
-              <Text style={styles.label}>Minimum following <Text style={styles.req}>*</Text></Text>
+              <Text style={styles.label}>How do creators get tickets? <Text style={styles.req}>*</Text></Text>
+              <View style={styles.modeCol}>
+                {([
+                  ['instant', 'Instant claim', 'Creators who meet your requirements claim tickets and get your code right away.'],
+                  ['manual', 'You pick', 'Creators tap "I\'m interested" before a deadline. You approve who goes and choose how they get tickets.'],
+                ] as const).map(([val, label, sub]) => {
+                  const on = approvalMode === val;
+                  return (
+                    <TouchableOpacity key={val} style={[styles.modeCard, on && styles.modeCardOn]} onPress={() => setApprovalMode(val)} activeOpacity={0.85}>
+                      <View style={[styles.radio, on && styles.radioOn]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.modeTitle, on && { color: C.accent }]}>{label}</Text>
+                        <Text style={styles.modeSub}>{sub}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {approvalMode === 'manual' && (
+                <>
+                  <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
+                  <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
+                  <View style={styles.chips}>
+                    {DEADLINE_OPTIONS.map(o => (
+                      <TouchableOpacity key={o.days} style={[styles.chip, deadlineDays === o.days && styles.chipSelected]} onPress={() => setDeadlineDays(o.days)}>
+                        <Text style={[styles.chipText, deadlineDays === o.days && styles.chipTextSelected]}>{o.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={[styles.hint, { marginTop: -12 }]}>
+                    Deadline: {deadlineIn(deadlineDays).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  </Text>
+                </>
+              )}
+
+              <Text style={[styles.label, styles.labelGap]}>Minimum following <Text style={styles.req}>*</Text></Text>
               <Text style={styles.hint}>Creators with larger followings will get first access.</Text>
               <TouchableOpacity style={styles.picker} onPress={() => setShowMinPicker(v => !v)}>
                 <Text style={minFollowing !== null ? styles.pickerValue : styles.pickerPlaceholder}>
@@ -326,12 +378,28 @@ export default function CreateCircuitScreen() {
                 </TouchableOpacity>
               </View>
 
+              <Text style={[styles.label, styles.labelGap]}>Tickets per creator <Text style={styles.req}>*</Text></Text>
+              <View style={styles.stepper}>
+                <Text style={styles.stepperValue}>{ticketsPer}</Text>
+                <Text style={styles.stepperUnit}>{ticketsPer === 1 ? 'ticket' : 'tickets'}</Text>
+                <TouchableOpacity style={[styles.stepperBtn, ticketsPer <= 1 && { opacity: 0.4 }]} onPress={() => setTicketsPer(n => Math.max(1, n - 1))} disabled={ticketsPer <= 1}>
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.stepperBtn, ticketsPer >= 4 && { opacity: 0.4 }]} onPress={() => setTicketsPer(n => Math.min(4, n + 1))} disabled={ticketsPer >= 4}>
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.summary}>
-                Each creator gets 2 tickets (them + a friend) = {maxRedemptions * 2} tickets total
+                Each creator gets {ticketsPer === 1 ? '1 ticket (just them)' : `${ticketsPer} tickets (them + ${ticketsPer - 1} guest${ticketsPer > 2 ? 's' : ''})`} = {maxRedemptions * ticketsPer} tickets total
               </Text>
 
+              {approvalMode === 'manual' ? (
+                <Text style={[styles.hint, { marginTop: 22 }]}>
+                  You'll choose how each creator gets tickets when you approve them: a promo code, the guest list, or by email.
+                </Text>
+              ) : (<>
               <Text style={[styles.label, styles.labelGap]}>Ticket code <Text style={styles.req}>*</Text></Text>
-              <Text style={styles.hint}>Creators enter this on your ticket site to get 2 free tickets.</Text>
+              <Text style={styles.hint}>Creators enter this on your ticket site to get {ticketsPer} free {ticketsPer === 1 ? 'ticket' : 'tickets'}.</Text>
               <View style={styles.platformRow}>
                 {([['shared', 'One code for everyone'], ['list', 'Unique code per creator']] as const).map(([val, label]) => {
                   const on = codeMode === val;
@@ -369,6 +437,7 @@ export default function CreateCircuitScreen() {
                   </Text>
                 </>
               )}
+              </>)}
 
             </>
           )}
@@ -423,6 +492,13 @@ export default function CreateCircuitScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.paper },
+  modeCol: { gap: 10, marginBottom: 4 },
+  modeCard: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: R.md, borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.card },
+  modeCardOn: { borderColor: C.accent, backgroundColor: C.accentTint },
+  modeTitle: { fontFamily: F.bodySemi, fontSize: 15, color: C.ink },
+  modeSub: { fontFamily: F.body, fontSize: 12.5, color: C.muted, lineHeight: 17, marginTop: 2 },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: C.line2, marginTop: 2 },
+  radioOn: { borderColor: C.accent, backgroundColor: C.accent },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

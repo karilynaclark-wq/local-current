@@ -14,6 +14,7 @@ import PostStats, { hasPostStats } from '../../components/PostStats';
 import { Icon, SocialIcon } from '../../components/Icon';
 import { RatingModal } from '../../components/Reviews';
 import ProblemReportModal from '../../components/ProblemReportModal';
+import ManualRequestsSection from '../../components/ManualRequestsSection';
 
 // ─── Extend expiry modal ──────────────────────────────────────────────────────
 interface ExtendModalProps {
@@ -166,7 +167,7 @@ export default function BusinessCircuitDetailScreen() {
 
     const claimsRes = await supabase
       .from('redemptions')
-      .select('id, status, creator_id, business_rating, business_rated_at, business_public_review, business_review_anonymous, requested_at, claimed_at, access_details, code')
+      .select('id, status, creator_id, business_rating, business_rated_at, business_public_review, business_review_anonymous, requested_at, claimed_at, access_details, code, delivery_method, confirmed_at')
       .eq('circuit_id', route.params.circuit.id);
     const redemptionData: RedemptionWithRating[] = claimsRes.data ?? [];
     const redemptionIds = redemptionData.map((r: any) => r.id);
@@ -444,9 +445,9 @@ export default function BusinessCircuitDetailScreen() {
             <View style={styles.statsRow}>
               {[
                 {
-                  num: stats.claims, label: 'Claimed',
+                  num: stats.claims, label: circuit.approval_mode === 'manual' ? 'Picked' : 'Claimed',
                   onPress: () => setCreatorListModal({
-                    title: 'Claimed',
+                    title: circuit.approval_mode === 'manual' ? 'Picked' : 'Claimed',
                     creators: redemptions
                       .filter((r: any) => FILLED_STATUSES.includes(r.status))
                       .map((r: any) => r.creator).filter(Boolean),
@@ -479,8 +480,12 @@ export default function BusinessCircuitDetailScreen() {
             </View>}
 
 
+            {circuit.approval_mode === 'manual' && (
+              <ManualRequestsSection circuit={circuit} redemptions={redemptions} onChanged={loadData} />
+            )}
+
             {/* Creators who claimed */}
-            {claimedCreators.length > 0 && (
+            {circuit.approval_mode !== 'manual' && claimedCreators.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Creators</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.creatorsScrollContent} style={{ marginBottom: 20 }}>

@@ -57,6 +57,8 @@ export interface Circuit {
   required_platform?: 'tiktok' | 'instagram' | 'either' | null;
   event_at?: string | null;
   code_mode?: 'shared' | 'list' | null;
+  approval_mode?: 'instant' | 'manual';
+  request_deadline?: string | null;
   starts_at: string | null;
   expires_at: string | null;
   voucher_description: string | null;

@@ -156,6 +156,14 @@ export default function CircuitDetailScreen() {
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   const [voucherWindowEnd, setVoucherWindowEnd] = useState<string | null>(null);
   const [problemReportedAt, setProblemReportedAt] = useState<string | null>(null);
+  const [deliveryMethod, setDeliveryMethod] = useState<'code' | 'guest_list' | 'email' | null>(null);
+  const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [myEmail, setMyEmail] = useState('');
+  const [otherEvents, setOtherEvents] = useState<Circuit[]>([]);
+  const isManual = circuit.approval_mode === 'manual';
+  const ticketCount = (circuit.guest_count ?? 1) + 1;
+  const ticketsLabel = ticketCount === 1 ? '1 free ticket' : `${ticketCount} free tickets`;
 
   const postDeadline = checkedInAt
     ? new Date(new Date(checkedInAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
@@ -182,7 +190,7 @@ export default function CircuitDetailScreen() {
         .then(({ data: creator }) => {
           if (!creator) return;
           supabase.from('redemptions')
-            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, creator_rating, creator_review, creator_review_anonymous')
+            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, delivery_method, confirmed_at, responded_at, creator_rating, creator_review, creator_review_anonymous')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
@@ -199,6 +207,8 @@ export default function CircuitDetailScreen() {
                 }
                 setAccessDetails(existing.code ?? existing.access_details ?? null);
                 setRequestedAt(existing.requested_at ?? existing.claimed_at ?? null);
+                setDeliveryMethod(existing.delivery_method ?? null);
+                setConfirmedAt(existing.confirmed_at ?? null);
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
               }
@@ -208,6 +218,48 @@ export default function CircuitDetailScreen() {
   }
 
   useFocusEffect(useCallback(() => { fetchRedemptionStatus(); }, []));
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setMyEmail(user?.email ?? ''));
+  }, []);
+
+  // "Not this time" / released: suggest other open events
+  useEffect(() => {
+    if (!['declined', 'expired'].includes(redemptionStatus ?? '')) return;
+    supabase.from('circuits').select('*, business:businesses(business_name, address)')
+      .eq('is_active', true).neq('id', circuit.id).order('created_at', { ascending: false }).limit(3)
+      .then(({ data }) => setOtherEvents((data ?? []) as Circuit[]));
+  }, [redemptionStatus]);
+
+  async function handleRequest() {
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc('request_current', { p_circuit_id: circuit.id });
+      if (error) throw error;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      trackEvent('circuit_requested', { circuit_id: circuit.id, business_id: circuit.business_id });
+      fetchRedemptionStatus();
+      setHasClaimed(true);
+      setRedemptionStatus('requested');
+    } catch (e: any) {
+      Alert.alert('Could not send', e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleConfirm() {
+    if (!redemptionId) return;
+    setConfirming(true);
+    const { error } = await supabase.rpc('confirm_tickets', { p_redemption_id: redemptionId });
+    setConfirming(false);
+    if (error) { Alert.alert('Error', error.message); fetchRedemptionStatus(); return; }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    trackEvent('tickets_confirmed', { circuit_id: circuit.id, method: deliveryMethod });
+    setConfirmedAt(new Date().toISOString());
+    // Guest list / email: nothing to buy, so they're set once confirmed.
+    if (deliveryMethod !== 'code' && eventAt) handleBooked();
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -463,10 +515,10 @@ export default function CircuitDetailScreen() {
               <View style={styles.perkIcon}><Icon name="ticket" size={18} color="#fff" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.perkPillTitle}>
-                  {(circuit.guest_count ?? 1) > 0 ? '2 free tickets' : '1 free ticket'}
+                  {ticketsLabel}
                 </Text>
                 <Text style={styles.perkPillSub}>
-                  {(circuit.guest_count ?? 1) > 0 ? 'Bring a friend, post an honest video after.' : 'Post an honest video after.'}
+                  {ticketCount > 1 ? `Bring ${ticketCount === 2 ? 'a friend' : `${ticketCount - 1} friends`}, post an honest video after.` : 'Post an honest video after.'}
                 </Text>
               </View>
             </View>
@@ -510,6 +562,7 @@ export default function CircuitDetailScreen() {
                   effectiveMin != null ? `${minFollowersLabel(effectiveMin)} followers` : null,
                   postOnLabel ? `Post on ${postOnLabel}` : null,
                   circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
+                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} picks by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
                 ].filter(Boolean).map(x => `  ·  ${x}`).join('')}
               </Text>
             </TouchableOpacity>
@@ -519,7 +572,14 @@ export default function CircuitDetailScreen() {
         {/* ── Requested: waiting on the business ── */}
         {isRequested && (
           <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>Request sent 🙌</Text>
+            <Text style={styles.stateTitle}>{isManual ? "You're on the list 🙌" : 'Request sent 🙌'}</Text>
+            {isManual ? (
+              <Text style={styles.stepText}>
+                {circuit.business?.business_name ?? 'The business'} picks creators
+                {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
+                We'll notify you if you're picked. You'll then have 72 hours to confirm.
+              </Text>
+            ) : (<>
             <Text style={styles.stepText}>
               {circuit.business?.business_name ?? 'The business'} will review your profile and respond within 48 hours.
               If they approve, you'll get a notification with everything you need to attend.
@@ -529,6 +589,7 @@ export default function CircuitDetailScreen() {
                 Expires {new Date(requestExpiresAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })} if there's no response.
               </Text>
             ) : null}
+            </>)}
           </View>
         )}
 
@@ -537,20 +598,84 @@ export default function CircuitDetailScreen() {
           <View style={styles.stateBox}>
             <Text style={styles.stateTitle}>
               {redemptionStatus === 'declined' ? 'Not this time'
-                : redemptionStatus === 'expired' ? 'Request expired'
+                : redemptionStatus === 'expired' ? (isManual ? 'Tickets released' : 'Request expired')
                 : 'Request withdrawn'}
             </Text>
             <Text style={styles.stepText}>
               {redemptionStatus === 'declined'
-                ? "The business went with other creators for this one. Don't sweat it, there are more currents to request."
+                ? (isManual ? 'Not this time. More events are coming!' : "The business went with other creators for this one. Don't sweat it, there are more currents to request.")
+                : redemptionStatus === 'expired' && isManual
+                ? "We didn't hear back within 72 hours, so your tickets went to another creator."
                 : redemptionStatus === 'expired'
                 ? "The business didn't respond within 48 hours. You can request again or browse other currents."
                 : 'You withdrew your request. You can request again if spots are still open.'}
             </Text>
+            {['declined', 'expired'].includes(redemptionStatus ?? '') && otherEvents.length > 0 && (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <Text style={[styles.stepText, { fontFamily: F.bodySemi }]}>Other events you can ask for</Text>
+                {otherEvents.map(ev => (
+                  <TouchableOpacity key={ev.id} style={styles.eventCard} onPress={() => navigation.push('CircuitDetail', { circuit: ev })} activeOpacity={0.8}>
+                    <Text style={styles.eventCardLabel} numberOfLines={1}>{ev.title}</Text>
+                    <View style={styles.eventCardOpen}>
+                      <Text style={styles.eventCardOpenText}>View</Text>
+                      <Icon name="arrow" size={14} color={C.accent} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
-        {isApproved && (
+        {/* ── Picked (manual): how to get tickets + "Got it!" ── */}
+        {isApproved && isManual && deliveryMethod && (
+          <View style={styles.stateBox}>
+            <Text style={styles.stateTitle}>You got picked! 🎟️</Text>
+            {eventDateStr ? <Text style={styles.stepNote}>{circuit.title} · {eventDateStr}</Text> : null}
+            {deliveryMethod === 'code' ? (
+              <>
+                <Text style={styles.stepText}>Use this code to get {ticketsLabel}:</Text>
+                {accessDetails ? (
+                  <TouchableOpacity style={styles.detailsBox} activeOpacity={0.7} onPress={async () => {
+                    await Clipboard.setStringAsync(accessDetails);
+                    setDetailsCopied(true); setTimeout(() => setDetailsCopied(false), 1500);
+                  }}>
+                    <Text style={styles.detailsText} selectable>{accessDetails}</Text>
+                    <View style={styles.codeCopy}>
+                      <Icon name={detailsCopied ? 'check' : 'clipboard'} size={14} color={C.accent} />
+                      <Text style={styles.codeCopyText}>{detailsCopied ? 'Copied' : 'Copy'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+                {circuit.event_link ? (
+                  <TouchableOpacity onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.7}>
+                    <Text style={styles.eventLinkText}>Get tickets →</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : deliveryMethod === 'guest_list' ? (
+              <Text style={styles.stepText}>
+                You're on the guest list under <Text style={{ fontFamily: F.bodySemi }}>{creatorName || 'your name'}</Text>
+                {ticketCount > 1 ? ` (+${ticketCount - 1})` : ''}. Show your ID at the door.
+              </Text>
+            ) : (
+              <Text style={styles.stepText}>
+                {circuit.business?.business_name ?? 'The business'} will email your {ticketsLabel.replace('free ', '')} to{' '}
+                <Text style={{ fontFamily: F.bodySemi }}>{myEmail || 'your email'}</Text>. Check your spam folder too.
+              </Text>
+            )}
+            {!confirmedAt ? (
+              <Text style={[styles.stepNote, { color: '#92400E' }]}>
+                Tap "Got it!" within 72 hours to keep your spot, or your tickets go to another creator.
+              </Text>
+            ) : (
+              <Text style={[styles.stepNote, { color: C.ok }]}>Confirmed. See you there!</Text>
+            )}
+            <Text style={styles.stepText}>After the event, post within 48 hours with #localcurrentapp in your caption.</Text>
+          </View>
+        )}
+
+        {isApproved && !(isManual && deliveryMethod) && (
           <View style={styles.stateBox}>
             <Text style={styles.stateTitle}>Your tickets 🎟️ {circuit.title}</Text>
             {eventDateStr ? <Text style={styles.stepNote}>{eventDateStr}</Text> : null}
@@ -559,7 +684,7 @@ export default function CircuitDetailScreen() {
               <View style={styles.stepBullet}><Text style={styles.stepBulletText}>1</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.stepText}>
-                  {(circuit.guest_count ?? 1) > 0 ? 'Use this code to get 2 free tickets (you + a friend):' : 'Use this code to get your free ticket:'}
+                  {`Use this code to get ${ticketsLabel}:`}
                 </Text>
                 {accessDetails ? (
                   <TouchableOpacity
@@ -749,7 +874,12 @@ export default function CircuitDetailScreen() {
           <View style={styles.infoNote}>
             <Text style={styles.infoNoteText}>This opp is only available to Creators</Text>
           </View>
-        ) : isApproved ? (
+        ) : isApproved && isManual && deliveryMethod && !confirmedAt ? (
+          <TouchableOpacity style={[styles.button, confirming && styles.buttonDisabled]} onPress={handleConfirm} disabled={confirming}>
+            <Text style={styles.buttonText}>{confirming ? 'Confirming…' : 'Got it!'}</Text>
+          </TouchableOpacity>
+        ) : isApproved && isManual && deliveryMethod && deliveryMethod !== 'code' && eventAt ? null
+        : isApproved ? (
           <TouchableOpacity
             style={[styles.button, booking && styles.buttonDisabled]}
             onPress={() => (eventAt ? handleBooked() : setShowBookModal(true))}
@@ -766,8 +896,13 @@ export default function CircuitDetailScreen() {
             </Text>
           </View>
         ) : hasClaimed && !isClosedRequest ? null
-        : isClosedRequest && !canRequestAgain ? null // declined
-        : isFull ? (
+        : isClosedRequest && (!canRequestAgain || (isManual && redemptionStatus === 'expired')) ? null // declined / released
+        : isManual && circuit.request_deadline && new Date(circuit.request_deadline) < new Date() ? (
+          <View style={styles.ineligibleNote}>
+            <Text style={styles.ineligibleText}>Requests are closed</Text>
+            <Text style={styles.ineligibleSub}>The deadline to ask for tickets has passed</Text>
+          </View>
+        ) : isFull ? (
           <View style={styles.ineligibleNote}>
             <Text style={styles.ineligibleText}>No tickets left</Text>
             <Text style={styles.ineligibleSub}>Every creator spot for this event has been claimed</Text>
@@ -793,7 +928,7 @@ export default function CircuitDetailScreen() {
             onPress={() => creatorStatus === 'pending' ? setShowPendingModal(true) : setShowClaimModal(true)}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>Claim tickets</Text>
+            <Text style={styles.buttonText}>{isManual ? "I'm interested" : 'Claim tickets'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -820,12 +955,14 @@ export default function CircuitDetailScreen() {
       <Modal visible={showClaimModal} transparent animationType="fade" onRequestClose={() => setShowClaimModal(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowClaimModal(false)}>
           <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Claim your tickets?</Text>
+            <Text style={styles.modalTitle}>{isManual ? 'Ask for tickets?' : 'Claim your tickets?'}</Text>
 
             <View style={styles.claimRow}>
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
-                You'll get a <Text style={styles.claimBold}>code for 2 free tickets</Text> (you + a friend) to buy online right away.
+                {isManual
+                  ? <>{circuit.business?.business_name ?? 'The business'} picks creators{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>72 hours to confirm</Text>.</>
+                  : <>You'll get a <Text style={styles.claimBold}>code for {ticketsLabel}</Text> to use online right away.</>}
               </Text>
             </View>
             <View style={styles.claimRow}>
@@ -847,8 +984,8 @@ export default function CircuitDetailScreen() {
                 No-shows or skipping the post can get you removed from the app.
               </Text>
             </View>
-            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); handleClaim(); }} disabled={loading}>
-              <Text style={styles.buttonText}>{loading ? 'Claiming…' : 'I understand, claim tickets'}</Text>
+            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); isManual ? handleRequest() : handleClaim(); }} disabled={loading}>
+              <Text style={styles.buttonText}>{loading ? 'Sending…' : isManual ? "I'm interested" : 'I understand, claim tickets'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowClaimModal(false)}>
               <Text style={styles.modalCancelText}>Never mind</Text>

@@ -8,6 +8,7 @@
 //    claim            redemptions.id  → 04 creator "you've got tickets" + 09 business "someone's coming"
 //    post             posts.id        → 10 business "it's up"
 //    problem          redemptions.id  → 15 admin "problem reported"
+//    approved         redemptions.id  → manual approval: creator email + push (how to get tickets, tap "Got it!")
 //  POST { type: 'hourly' } with x-cron-secret — 24h after a post:
 //    04b creator "how was it?", 10b business "how did @x do?", 11 business 24-hour results
 //  GET ?unsub=<profile id>&t=<sig> — turns off alert/recap emails.
@@ -18,7 +19,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   layout, hi, p, fine, b, esc, link, btn, ol, ul, card, codeBox, stats,
-  recipient, once, send, sendAdmin, prefsFooter, verifyUnsub, APP_URL, ADMIN_EMAIL, appLink,
+  recipient, once, send, sendAdmin, prefsFooter, verifyUnsub, APP_URL, ADMIN_EMAIL, appLink, pushTo,
 } from '../_shared/email.ts';
 
 const json = (body: unknown, status = 200) =>
@@ -49,7 +50,7 @@ async function creatorInfo(db: SupabaseClient, creatorId: string) {
 
 async function circuitInfo(db: SupabaseClient, circuitId: string) {
   const { data } = await db.from('circuits')
-    .select('id, title, description, event_link, code_mode, promo_code, max_redemptions, min_followers, created_at, business:businesses(id, business_name, profile_id, instagram_handle, tiktok_handle)')
+    .select('id, title, description, event_link, event_at, code_mode, approval_mode, request_deadline, guest_count, max_redemptions, min_followers, required_platform, created_at, business:businesses(id, business_name, profile_id, instagram_handle, tiktok_handle)')
     .eq('id', circuitId).single();
   return data as any;
 }
@@ -123,7 +124,10 @@ async function currentPosted(db: SupabaseClient, id: string) {
   if (!r) return;
   const min = ci.min_followers ?? 0;
   const top = STAGES.filter((v) => v >= min)[0] ?? min;
-  const code = ci.code_mode === 'list' ? 'unique code per creator' : ci.promo_code ? `${ci.promo_code} for everyone` : '';
+  const manual = ci.approval_mode === 'manual';
+  const code = manual ? 'You pick creators' : ci.code_mode === 'list' ? 'Code: unique code per creator' : 'Code: one code for everyone';
+  const deadline = ci.request_deadline
+    ? new Date(ci.request_deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
   const spots = ci.max_redemptions ?? 0;
   await send(r.email, `${ci.title} is live!`, layout({
     tag: 'Live', preview: "Here's what happens next.",
@@ -132,10 +136,12 @@ async function currentPosted(db: SupabaseClient, id: string) {
       ul([
         top > min ? `<strong>Today:</strong> creators with the biggest followings (${compact(top)}+) see it first.` : '<strong>Today:</strong> every eligible creator can see it.',
         ...(top > min ? [`<strong>Every 24 hours:</strong> it opens to the next group, down to your minimum (${compact(min)}).`] : []),
-        '<strong>As creators claim:</strong> we\'ll email you who\'s coming.',
+        manual
+          ? `<strong>Until ${esc(deadline || 'your deadline')}:</strong> creators tap "I'm interested." We'll ping you as they come in, and you can approve anytime.`
+          : '<strong>As creators claim:</strong> we\'ll email you who\'s coming.',
         '<strong>After the event:</strong> creators post within 48 hours, and we\'ll send you their videos and results.',
       ]) +
-      card('Your event', esc(ci.title), code ? `Code: ${esc(code)}` : '', `${spots} creators × 2 tickets`) +
+      card('Your event', esc(ci.title), esc(code), `${spots} creators × ${(ci.guest_count ?? 1) + 1} tickets`) +
       fine('No need to keep refreshing the app. We\'ll keep you posted.') +
       btn('View your event', appLink(`manage/${ci.id}`)),
   }));
@@ -151,7 +157,7 @@ async function claim(db: SupabaseClient, id: string) {
 
   if (await once(db, `04:${id}`)) {
     const r = await recipient(db, c.profile_id);
-    const code = red.code ?? ci.promo_code;
+    const code = red.code;
     const handles = [at(biz.instagram_handle), at(biz.tiktok_handle)].filter(Boolean);
     const uniq = [...new Set(handles)];
     if (r) {
@@ -242,6 +248,143 @@ async function report(db: SupabaseClient, id: string) {
     `Details: ${esc(rep.details ?? '—')}`,
     'Reply to them directly at the email above.',
   ].filter(Boolean));
+}
+
+// ── Manual-approval currents ─────────────────────────────────────────────────
+const tickets = (ci: any) => (ci.guest_count ?? 1) + 1;
+const ticketWord = (n: number) => `${n} ticket${n === 1 ? '' : 's'}`;
+const CONFIRM_HOURS = 72;
+
+async function approved(db: SupabaseClient, id: string) {
+  const { data: red } = await db.from('redemptions')
+    .select('id, creator_id, circuit_id, code, delivery_method').eq('id', id).single();
+  if (!red?.delivery_method || !(await once(db, `ap:${id}`))) return;
+  const [ci, c] = await Promise.all([circuitInfo(db, red.circuit_id), creatorInfo(db, red.creator_id)]);
+  if (!ci || !c) return;
+  const bizName = ci.business?.business_name ?? 'The business';
+  const n = tickets(ci);
+  const r = await recipient(db, c.profile_id);
+
+  const how =
+    red.delivery_method === 'code'
+      ? p(`Use this code on ${ci.event_link ? link(ci.event_link, `${esc(bizName)}'s ticket site`) : `${esc(bizName)}'s ticket site`} to get ${ticketWord(n)}:`) + codeBox(red.code ?? '')
+      : red.delivery_method === 'guest_list'
+        ? p(`You're on the guest list under ${b(c.profile?.full_name || c.name)}${n > 1 ? ` (+${n - 1})` : ''}. Show your ID at the door.`)
+        : p(`${esc(bizName)} will email your ${ticketWord(n)} to ${b(r?.email ?? 'your email')}. Keep an eye on your inbox (and spam folder).`);
+
+  await pushTo(db, c.profile_id, "You're in! 🎟️", `${bizName} picked you for ${ci.title}. Tap "Got it!" within 72 hours to keep your spot.`,
+    { url: `localcurrent://event/${ci.id}` });
+  if (r) {
+    await send(r.email, `You're going to ${ci.title}!`, layout({
+      tag: "You're in", preview: `${bizName} picked you. Confirm within 72 hours to keep your spot.`,
+      body: hi(`You got picked, ${esc(r.first)}!`) +
+        p(`${b(bizName)} chose you for ${b(ci.title)}.`) + how +
+        p(`<strong>Tap "Got it!" in the app within 72 hours</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
+        btn('Got it!', appLink(`event/${ci.id}`)) +
+        p('<strong>For your post</strong>') +
+        ul([
+          'Post within 48 hours of the event.',
+          "Add <strong>#localcurrentapp</strong> to your caption on your connected account. That's how we find your video.",
+        ]),
+    }));
+  }
+}
+
+/** Hourly: interest pushes, deadline nudges, 72-hour releases, closing unpicked requests. */
+async function manualHourly(db: SupabaseClient): Promise<number> {
+  let sent = 0;
+  const now = Date.now();
+
+  // 1) "N creators want tickets" — one bundled push per current per hour
+  const { data: reqs } = await db.from('redemptions')
+    .select('id, circuit_id, circuit:circuits(id, title, approval_mode, business:businesses(profile_id))')
+    .eq('status', 'requested');
+  const byCircuit: Record<string, any[]> = {};
+  for (const r of (reqs ?? []) as any[]) {
+    if (r.circuit?.approval_mode !== 'manual') continue;
+    if (!(await once(db, `int:${r.id}`))) continue;
+    (byCircuit[r.circuit_id] ??= []).push(r);
+  }
+  for (const list of Object.values(byCircuit)) {
+    const ci = list[0].circuit;
+    const n = list.length;
+    await pushTo(db, ci.business.profile_id, `${n} creator${n === 1 ? '' : 's'} want${n === 1 ? 's' : ''} tickets`,
+      `New interest in ${ci.title}. Tap to review.`, { url: `localcurrent://manage/${ci.id}` });
+    sent++;
+  }
+
+  // 2) Deadline passed → nudge the business once
+  const { data: due } = await db.from('circuits')
+    .select('id, title, max_redemptions, business:businesses(profile_id)')
+    .eq('approval_mode', 'manual').is('deadline_notified', null)
+    .lt('request_deadline', new Date(now).toISOString());
+  for (const ci of (due ?? []) as any[]) {
+    await db.from('circuits').update({ deadline_notified: new Date().toISOString() }).eq('id', ci.id);
+    const { count } = await db.from('redemptions').select('id', { count: 'exact', head: true })
+      .eq('circuit_id', ci.id).eq('status', 'requested');
+    if (!count) continue;
+    await pushTo(db, ci.business.profile_id, 'Time to pick your creators',
+      `${count} creator${count === 1 ? '' : 's'} want tickets to ${ci.title}.`, { url: `localcurrent://manage/${ci.id}` });
+    const r = await recipient(db, ci.business.profile_id, true);
+    if (r) {
+      await send(r.email, `Pick your creators for ${ci.title}`, layout({
+        tag: 'Deadline passed', preview: `${count} creators are waiting to hear back.`,
+        body: hi(`Time to pick, ${esc(r.first)}.`) +
+          p(`The deadline for ${b(ci.title)} has passed and ${b(count)} creator${count === 1 ? ' is' : 's are'} waiting to hear back.`) +
+          p('Approve the ones you want and choose how they get tickets: a code, the guest list, or email.') +
+          btn('Review creators', appLink(`manage/${ci.id}`)),
+        footer: await prefsFooter("You're getting this because you have a live event.", ci.business.profile_id),
+      }));
+    }
+    sent++;
+  }
+
+  // 3) Approved but no "Got it!" → reminder at 48h, release at 72h
+  const { data: pending } = await db.from('redemptions')
+    .select('id, responded_at, creator_id, circuit_id, circuit:circuits(id, title, business:businesses(profile_id))')
+    .eq('status', 'approved').not('delivery_method', 'is', null).is('confirmed_at', null);
+  for (const r of (pending ?? []) as any[]) {
+    const age = (now - new Date(r.responded_at).getTime()) / 3_600_000;
+    const { data: c } = await db.from('creators').select('profile_id, tiktok_handle, instagram_handle').eq('id', r.creator_id).single();
+    if (!c) continue;
+    if (age >= CONFIRM_HOURS) {
+      await db.from('redemptions').update({ status: 'expired' }).eq('id', r.id);
+      await pushTo(db, c.profile_id, 'Tickets released',
+        `We didn't hear back, so your tickets to ${r.circuit.title} went to another creator.`, { url: 'localcurrent://home' });
+      await pushTo(db, r.circuit.business.profile_id, 'A spot opened up',
+        `${at(c.tiktok_handle || c.instagram_handle) || 'A creator'} didn't confirm for ${r.circuit.title}. Pick someone else.`,
+        { url: `localcurrent://manage/${r.circuit.id}` });
+      sent++;
+    } else if (age >= 48 && (await once(db, `cf48:${r.id}`))) {
+      await pushTo(db, c.profile_id, 'Confirm your tickets',
+        `Tap "Got it!" for ${r.circuit.title} in the next day or your tickets go to another creator.`,
+        { url: `localcurrent://event/${r.circuit.id}` });
+      sent++;
+    }
+  }
+
+  // 4) Not picked → close when the event starts (or 7 days after the deadline if no date)
+  const { data: open } = await db.from('redemptions')
+    .select('id, creator_id, circuit:circuits(id, title, event_at, request_deadline, approval_mode)')
+    .eq('status', 'requested');
+  for (const r of (open ?? []) as any[]) {
+    const ci = r.circuit;
+    if (ci?.approval_mode !== 'manual') continue;
+    const closeAt = ci.event_at ? new Date(ci.event_at).getTime()
+      : ci.request_deadline ? new Date(ci.request_deadline).getTime() + 7 * 86_400_000 : null;
+    if (!closeAt || closeAt > now) continue;
+    await db.from('redemptions').update({ status: 'declined', responded_at: new Date().toISOString() }).eq('id', r.id);
+    const { data: c } = await db.from('creators').select('profile_id').eq('id', r.creator_id).single();
+    const { count: others } = await db.from('circuits').select('id', { count: 'exact', head: true })
+      .eq('is_active', true).neq('id', ci.id);
+    if (c) {
+      await pushTo(db, c.profile_id, 'Not this time',
+        `You weren't picked for ${ci.title}.${others ? ` ${others} other event${others === 1 ? ' is' : 's are'} open now — take a look!` : ' More events are coming soon.'}`,
+        { url: 'localcurrent://home' });
+    }
+    sent++;
+  }
+  return sent;
 }
 
 // ── Hourly: 24 hours after a post ────────────────────────────────────────────
@@ -378,7 +521,8 @@ serve(async (req) => {
       case 'post': await postAdded(db, id); break;
       case 'problem': await problem(db, id); break;
       case 'report': await report(db, id); break;
-      case 'hourly': return json({ sent: await hourly(db) });
+      case 'approved': await approved(db, id); break;
+      case 'hourly': return json({ sent: (await hourly(db)) + (await manualHourly(db)) });
       case 'test': {
         // Preview: sends the welcome emails to the admin inbox with sample data.
         const r = { email: ADMIN_EMAIL, first: 'Kari' };
