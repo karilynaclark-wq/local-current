@@ -12,6 +12,7 @@ import { Logo } from '../../components/Logo';
 import { StatusChip } from '../../components/UI';
 import { isEligibleForCircuit, creatorFollowersByPlatform, creatorFollowerCounts, PlatformFollowerMap, PlatformCountMap } from '../../lib/eligibility';
 import { getConnections } from '../../lib/socialConnect';
+import RequireConnectionGate from '../../components/RequireConnectionGate';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
   '60601': 'The Loop', '60602': 'The Loop', '60603': 'The Loop', '60604': 'The Loop',
@@ -126,6 +127,7 @@ export default function CreatorHomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <RequireConnectionGate onConnected={loadCreatorAndCircuits} />
       <View style={styles.header}>
         {navigation.canGoBack() && (
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>

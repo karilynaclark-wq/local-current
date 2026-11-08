@@ -49,8 +49,8 @@ export default function ProfileScreen() {
   async function loadProfile() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    setProfile(prof);
+    const { data: prof } = await supabase.from('profiles').select('id, full_name, role, created_at, avatar_url, email_opt_out').eq('id', user.id).single();
+    setProfile(prof ? ({ ...prof, email: user.email ?? '' } as any) : null);
     setRole(prof?.role);
     setAvatarUrl(prof?.avatar_url ?? null);
     setFullName(prof?.full_name ?? '');
@@ -87,13 +87,8 @@ export default function ProfileScreen() {
       if (!user) throw new Error('Not authenticated');
       await supabase.from('profiles').update({ full_name: fullName }).eq('id', user.id);
       if (role === 'creator') {
-        const rangeChanged = followerRange !== originalFollowerRange || secondaryFollowerRange !== originalSecondaryFollowerRange;
-        const updates: any = { instagram_handle: instagram, tiktok_handle: tiktok, zip_code: zipCode };
-        if (rangeChanged) {
-          updates.pending_follower_range = followerRange;
-          updates.pending_secondary_follower_range = secondaryFollowerRange;
-          Alert.alert('Verification required', 'Changing your follower count requires verification. Your account will show the current count until an admin has verified your change — usually within 24 hours.', [{ text: 'OK' }]);
-        }
+        // Handles + follower counts come from connected accounts (server-managed).
+        const updates: any = { zip_code: zipCode };
         const { error } = await supabase.from('creators').update(updates).eq('profile_id', user.id);
         if (error) throw error;
       } else {
@@ -203,48 +198,9 @@ export default function ProfileScreen() {
 
           {role === 'creator' ? (
             <>
-              {(['instagram', 'tiktok'] as const)
-                .sort((a, b) => (a === mainPlatform ? -1 : b === mainPlatform ? 1 : 0))
-                .map((platform, idx) => {
-                  const isPrimary = platform === mainPlatform;
-                  const isInstagram = platform === 'instagram';
-                  const handle = isInstagram ? instagram : tiktok;
-                  const setHandle = isInstagram ? setInstagram : setTiktok;
-                  const range = isPrimary ? followerRange : secondaryFollowerRange;
-                  const setRange = isPrimary
-                    ? (r: string) => { setFollowerRange(r); setFollowerChanged(true); }
-                    : (r: string) => { setSecondaryFollowerRange(r); setFollowerChanged(true); };
-
-                  return (
-                    <View key={platform} style={idx > 0 ? { marginTop: 20 } : {}}>
-                      <View style={styles.platformHeader}>
-                        <Icon name={isInstagram ? 'film' : 'phone'} size={16} color={C.accent} />
-                        <Text style={styles.platformTitle}>{isInstagram ? 'Instagram' : 'TikTok'}</Text>
-                        <View style={[styles.platformBadge, isPrimary ? styles.primaryBadge : styles.secondaryBadge]}>
-                          <Text style={[styles.platformBadgeText, isPrimary ? styles.primaryBadgeText : styles.secondaryBadgeText]}>
-                            {isPrimary ? 'Primary' : 'Secondary'}
-                          </Text>
-                        </View>
-                      </View>
-                      <AtInput value={handle} onChangeText={setHandle} />
-                      <Text style={styles.hint}>Followers · changing requires re-approval</Text>
-                      <View style={styles.chipRow}>
-                        {FOLLOWER_RANGES.map(r => (
-                          <TouchableOpacity key={r} style={[styles.chip, range === r && styles.chipSelected]} onPress={() => setRange(r)}>
-                            <Text style={[styles.chipText, range === r && styles.chipTextSelected]}>{r}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  );
-                })}
-
-              {followerChanged && (
-                <View style={styles.warningBox}>
-                  <Icon name="bell" size={14} color="#92400E" />
-                  <Text style={styles.warningText}>Your requested change will be reviewed by an admin. Your current approved count stays active in the meantime.</Text>
-                </View>
-              )}
+              <Text style={styles.hint}>
+                Your handles and follower counts come from your connected accounts. Manage them in Settings.
+              </Text>
 
               <Text style={[styles.label, { marginTop: 20 }]}>Zip code</Text>
               <TextInput

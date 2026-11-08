@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { Redemption } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon, SocialIcon } from '../../components/Icon';
-import { getPushToken, sendPush } from '../../lib/notifications';
+import { notifyUser } from '../../lib/notifications';
 import { trackEvent } from '../../lib/analytics';
 
 export default function SubmitPostScreen() {
@@ -82,11 +82,8 @@ export default function SubmitPostScreen() {
       // Notify the business that a post was submitted
       const businessProfileId = redemption.circuit?.business?.profile_id;
       if (businessProfileId) {
-        const token = await getPushToken(businessProfileId);
-        if (token) {
-          const platforms = posts.map(p => p!.platform === 'tiktok' ? 'TikTok' : 'Instagram').join(' & ');
-          sendPush(token, 'New post submitted! 📱', `A creator posted to ${platforms} for your "${redemption.circuit?.title}" current`);
-        }
+        const platforms = posts.map(p => p!.platform === 'tiktok' ? 'TikTok' : 'Instagram').join(' & ');
+        notifyUser(businessProfileId, 'New post submitted! 📱', `A creator posted to ${platforms} for your "${redemption.circuit?.title}" current`);
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

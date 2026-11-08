@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { signOut } from '../../lib/auth';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
-import { getPushToken, sendPush } from '../../lib/notifications';
+import { notifyUser } from '../../lib/notifications';
 
 interface PendingCreator {
   id: string;
@@ -104,17 +104,17 @@ export default function AdminDashboardScreen() {
     ] = await Promise.all([
       supabase
         .from('creators')
-        .select('*, profile:profiles(full_name, email)')
+        .select('*, profile:profiles(full_name)')
         .eq('status', 'pending')
         .order('created_at', { ascending: true }),
       supabase
         .from('creators')
-        .select('id, instagram_handle, tiktok_handle, follower_range, secondary_follower_range, pending_follower_range, pending_secondary_follower_range, profile:profiles(full_name, email)')
+        .select('id, instagram_handle, tiktok_handle, follower_range, secondary_follower_range, pending_follower_range, pending_secondary_follower_range, profile:profiles(full_name)')
         .not('pending_follower_range', 'is', null)
         .order('created_at', { ascending: true }),
       supabase
         .from('creators')
-        .select('id, instagram_handle, tiktok_handle, follower_range, no_show_count, late_post_count, missed_post_count, profile:profiles(full_name, email)')
+        .select('id, instagram_handle, tiktok_handle, follower_range, no_show_count, late_post_count, missed_post_count, profile:profiles(full_name)')
         .eq('status', 'approved')
         .order('created_at', { ascending: false }),
       supabase
@@ -127,8 +127,8 @@ export default function AdminDashboardScreen() {
         .order('problem_reported_at', { ascending: false }),
     ]);
 
-    setCreators(pending ?? []);
-    setChanges(pendingChanges ?? []);
+    setCreators((pending ?? []) as any);
+    setChanges((pendingChanges ?? []) as any);
 
     // Fetch creators for reports separately to avoid RLS blocking nested joins
     const reportCreatorIds = [...new Set((reportRows ?? []).map((r: any) => r.creator_id).filter(Boolean))];
@@ -235,13 +235,10 @@ export default function AdminDashboardScreen() {
     const { error } = await supabase.from('creators').update({ status }).eq('id', id);
     if (error) { Alert.alert('Error', error.message); return; }
     if (creator?.profile_id) {
-      const token = await getPushToken(creator.profile_id);
-      if (token) {
-        if (status === 'approved') {
-          sendPush(token, "You're in! 🎉", "Your Local Current application was approved. Start browsing currents in your area.");
-        } else {
-          sendPush(token, 'Application update', "Unfortunately your Local Current application wasn't approved at this time.");
-        }
+      if (status === 'approved') {
+        notifyUser(creator.profile_id, "You're in! 🎉", "Your Local Current application was approved. Start browsing currents in your area.");
+      } else {
+        notifyUser(creator.profile_id, 'Application update', "Unfortunately your Local Current application wasn't approved at this time.");
       }
     }
     fetchAll();

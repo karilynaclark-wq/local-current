@@ -17,6 +17,7 @@ import RoleSelectScreen from '../screens/auth/RoleSelectScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import SignInScreen from '../screens/auth/SignInScreen';
 import CreatorOnboardingScreen from '../screens/auth/CreatorOnboardingScreen';
+import VerifyEmailScreen from '../screens/auth/VerifyEmailScreen';
 import BusinessOnboardingScreen from '../screens/auth/BusinessOnboardingScreen';
 
 import CreatorPendingScreen from '../screens/creator/CreatorPendingScreen';
@@ -44,7 +45,7 @@ import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
-const ADMIN_EMAILS = ['hello@localcurrentapp.com', 'hello@join-circuit.com'];
+const ADMIN_EMAILS = ['hello@localcurrentapp.com'];
 
 function AuthStack({ initialRoute }: { initialRoute?: string } = {}) {
   return (
@@ -52,6 +53,7 @@ function AuthStack({ initialRoute }: { initialRoute?: string } = {}) {
       <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
+      <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
       <Stack.Screen name="CreatorOnboarding" component={CreatorOnboardingScreen} />
       <Stack.Screen name="BusinessOnboarding" component={BusinessOnboardingScreen} />
     </Stack.Navigator>

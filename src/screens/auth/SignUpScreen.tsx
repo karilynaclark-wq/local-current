@@ -40,6 +40,13 @@ export default function SignUpScreen() {
     setLoading(true);
     try {
       const data = await signUp(email, password, fullName, role);
+      if (!data.session) {
+        // Email confirmation is on: verify the code first, then the profile is created.
+        trackEvent('signed_up', { role });
+        setLoading(false);
+        navigation.navigate('VerifyEmail', { email: email.trim() });
+        return;
+      }
       if (data.user) {
         await supabase.from('profiles').upsert({
           id: data.user.id,

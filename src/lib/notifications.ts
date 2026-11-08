@@ -86,46 +86,18 @@ export async function sendPush(
 }
 
 /**
- * Look up the push token for a given profile_id (user id).
+ * Push a notification to another user. The server looks up their token and
+ * checks you're allowed to reach them (see send-push).
  */
-export async function getPushToken(profileId: string): Promise<string | null> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('push_token')
-    .eq('id', profileId)
-    .single();
-  return data?.push_token ?? null;
-}
-
-/**
- * Look up push tokens for all eligible creators for a circuit.
- * Filters by follower range and niches.
- */
-export async function getEligibleCreatorTokens(
-  eligibilityMinFollowers: string,
-  eligibilityNiches: string[]
-): Promise<string[]> {
-  const allowedRanges = eligibilityMinFollowers
-    ? eligibilityMinFollowers.split(',').map(r => r.trim())
-    : [];
-
-  const { data } = await supabase
-    .from('creators')
-    .select('follower_range, niche, profile:profiles(push_token)')
-    .eq('status', 'approved');
-
-  if (!data) return [];
-
-  return (data as any[])
-    .filter((c: any) => {
-      if (!c.profile?.push_token) return false;
-      if (allowedRanges.length > 0 && !allowedRanges.includes(c.follower_range)) return false;
-      if (eligibilityNiches.length > 0) {
-        const creatorNiches: string[] = c.niche ? c.niche.split(',').map((n: string) => n.trim()) : [];
-        if (!eligibilityNiches.some(n => creatorNiches.includes(n))) return false;
-      }
-      return true;
-    })
-    .map((c: any) => c.profile.push_token)
-    .filter(Boolean);
+export async function notifyUser(
+  profileId: string | string[],
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> {
+  try {
+    await supabase.functions.invoke('send-push', { body: { to: profileId, title, body, data: data ?? {} } });
+  } catch {
+    // Push delivery failed silently — non-critical
+  }
 }

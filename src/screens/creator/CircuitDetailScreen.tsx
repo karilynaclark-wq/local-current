@@ -11,7 +11,7 @@ import { Circuit } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
 import { RatingModal, Stars } from '../../components/Reviews';
-import { getPushToken, sendPush } from '../../lib/notifications';
+import { notifyUser } from '../../lib/notifications';
 import { trackEvent } from '../../lib/analytics';
 import { isEligibleForCircuit, currentlyEligibleRanges, creatorFollowersByPlatform, eligibilityStatus, creatorFollowerCounts, minFollowersLabel, type PlatformCountMap } from '../../lib/eligibility';
 import { getConnections } from '../../lib/socialConnect';
@@ -57,16 +57,7 @@ function ReportModal({ visible, redemptionId, onClose }: { visible: boolean; red
     }).eq('id', redemptionId);
     setSaving(false);
     if (error) { Alert.alert('Error', error.message); return; }
-    // Notify admin
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', 'hello@join-circuit.com')
-      .single();
-    if (adminProfile) {
-      const token = await getPushToken(adminProfile.id);
-      if (token) sendPush(token, 'Problem reported ⚠️', `A creator reported an issue: ${reportType.replace(/_/g, ' ')}`);
-    }
+    // The admin is emailed by the database (send-email 'problem').
     Alert.alert('Report submitted', 'Our team will review this and follow up if needed.');
     onClose();
   }
@@ -274,8 +265,7 @@ export default function CircuitDetailScreen() {
 
       const { data: biz } = await supabase.from('businesses').select('profile_id').eq('id', circuit.business_id).single();
       if (biz?.profile_id) {
-        const token = await getPushToken(biz.profile_id);
-        if (token) sendPush(token, 'Tickets claimed 🎟️', `${creatorName || 'A creator'} claimed tickets to "${circuit.title}".`);
+        notifyUser(biz.profile_id, 'Tickets claimed 🎟️', `${creatorName || 'A creator'} claimed tickets to "${circuit.title}".`);
       }
 
       fetchRedemptionStatus();
@@ -767,20 +757,14 @@ export default function CircuitDetailScreen() {
           >
             <Text style={styles.buttonText}>I got my tickets</Text>
           </TouchableOpacity>
-        ) : hasClaimed && redemptionStatus === 'checked_in' ? (
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => minRedemption && navigation.navigate('SubmitPost', { redemption: minRedemption })}
-          >
-            <Text style={styles.buttonText}>Submit post</Text>
-          </TouchableOpacity>
-        ) : hasClaimed && redemptionStatus === 'completed' && !hasPost ? (
-          <TouchableOpacity
-            style={[styles.button, postExpired && { backgroundColor: '#DC2626' }]}
-            onPress={() => minRedemption && navigation.navigate('SubmitPost', { redemption: minRedemption })}
-          >
-            <Text style={styles.buttonText}>Submit post</Text>
-          </TouchableOpacity>
+        ) : hasClaimed && (redemptionStatus === 'checked_in' || (redemptionStatus === 'completed' && !hasPost)) ? (
+          <View style={styles.ineligibleNote}>
+            <Text style={styles.ineligibleText}>Post with #localcurrentapp</Text>
+            <Text style={styles.ineligibleSub}>
+              Add #localcurrentapp to your caption on your connected TikTok or Instagram. We'll find your video
+              and add it here automatically, usually within a day.
+            </Text>
+          </View>
         ) : hasClaimed && !isClosedRequest ? null
         : isClosedRequest && !canRequestAgain ? null // declined
         : isFull ? (

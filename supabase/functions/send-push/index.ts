@@ -1,57 +1,61 @@
 // Supabase Edge Function: send-push
-// Accepts { tokens: string[], title: string, body: string, data?: object }
-// and fires them via the Expo Push API.
+// POST { to: profileId | profileIds[], title, body, data? } with the user's JWT.
+// Push tokens are looked up here (the app never sees other users' tokens), and
+// can_notify() checks the sender is allowed to reach each recipient: admins →
+// anyone, anyone → admins, creator ↔ the business whose event they claimed.
+//
+// Legacy: older app versions send { tokens }. Still accepted until
+// security_phase2_after_update.sql hides tokens; remove LEGACY after that.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const LEGACY = true;
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+const json = (b: unknown, status = 200) =>
+  new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+const isExpo = (t?: string | null) => !!t && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['));
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {
-    const { tokens, title, body, data } = await req.json();
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const { data: auth } = await db.auth.getUser(jwt);
+    const sender = auth?.user?.id;
+    if (!sender) return json({ error: 'Sign in required' }, 401);
 
-    if (!tokens?.length) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
+    const { to, tokens, title, body, data } = await req.json();
+    if (typeof title !== 'string' || typeof body !== 'string') return json({ error: 'title and body required' }, 400);
+
+    let targets: string[] = [];
+    if (to) {
+      const ids = (Array.isArray(to) ? to : [to]).filter((x) => typeof x === 'string').slice(0, 50);
+      for (const id of ids) {
+        const { data: ok } = await db.rpc('can_notify', { p_from: sender, p_to: id });
+        if (!ok) continue;
+        const { data: p } = await db.from('profiles').select('push_token').eq('id', id).single();
+        if (isExpo(p?.push_token)) targets.push(p!.push_token);
+      }
+    } else if (LEGACY && Array.isArray(tokens)) {
+      targets = tokens.filter(isExpo).slice(0, 10);
     }
-
-    // Filter to valid Expo push tokens only
-    const valid = (tokens as string[]).filter(
-      t => t && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['))
-    );
-
-    if (!valid.length) {
-      return new Response(JSON.stringify({ sent: 0, skipped: tokens.length }), { status: 200 });
-    }
-
-    const messages = valid.map(to => ({
-      to,
-      title,
-      body,
-      data: data ?? {},
-      sound: 'default',
-    }));
+    if (!targets.length) return json({ sent: 0 });
 
     const res = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(messages),
+      body: JSON.stringify(targets.map((t) => ({
+        to: t, title: title.slice(0, 120), body: body.slice(0, 300), data: data ?? {}, sound: 'default',
+      }))),
     });
-
-    const result = await res.json();
-    return new Response(JSON.stringify({ sent: valid.length, result }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    return json({ sent: targets.length, result: await res.json() });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return json({ error: err.message }, 500);
   }
 });

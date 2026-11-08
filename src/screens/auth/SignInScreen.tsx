@@ -41,6 +41,11 @@ export default function SignInScreen() {
       await signIn(email, password);
       trackEvent('signed_in');
     } catch (e: any) {
+      if (/not confirmed/i.test(e.message ?? '')) {
+        await supabase.auth.resend({ type: 'signup', email: email.trim() }).catch(() => {});
+        navigation.navigate('VerifyEmail', { email: email.trim() });
+        return;
+      }
       Alert.alert('Sign in failed', e.message);
     } finally {
       setLoading(false);
