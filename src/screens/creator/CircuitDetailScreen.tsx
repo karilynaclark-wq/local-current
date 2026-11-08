@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { Circuit } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import DatePicker from '../../components/DatePicker';
 import { RatingModal, Stars } from '../../components/Reviews';
 import { notifyUser } from '../../lib/notifications';
 import { trackEvent } from '../../lib/analytics';
@@ -161,6 +162,11 @@ export default function CircuitDetailScreen() {
   const [confirming, setConfirming] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [otherEvents, setOtherEvents] = useState<Circuit[]>([]);
+  const [goingOn, setGoingOn] = useState<string | null>(null);
+  const [showDates, setShowDates] = useState(false);
+  const [pickDates, setPickDates] = useState<Date[]>([]);
+  const [prefNote, setPrefNote] = useState('');
+  const isRecurring = circuit.schedule_type === 'recurring';
   const isManual = circuit.approval_mode === 'manual';
   const ticketCount = (circuit.guest_count ?? 1) + 1;
   const ticketsLabel = ticketCount === 1 ? '1 free ticket' : `${ticketCount} free tickets`;
@@ -190,7 +196,7 @@ export default function CircuitDetailScreen() {
         .then(({ data: creator }) => {
           if (!creator) return;
           supabase.from('redemptions')
-            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, delivery_method, confirmed_at, responded_at, creator_rating, creator_review, creator_review_anonymous')
+            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, delivery_method, confirmed_at, responded_at, going_on, creator_rating, creator_review, creator_review_anonymous')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
@@ -209,6 +215,7 @@ export default function CircuitDetailScreen() {
                 setRequestedAt(existing.requested_at ?? existing.claimed_at ?? null);
                 setDeliveryMethod(existing.delivery_method ?? null);
                 setConfirmedAt(existing.confirmed_at ?? null);
+                setGoingOn(existing.going_on ?? null);
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
               }
@@ -231,16 +238,24 @@ export default function CircuitDetailScreen() {
       .then(({ data }) => setOtherEvents((data ?? []) as Circuit[]));
   }, [redemptionStatus]);
 
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   async function handleRequest() {
+    if (isRecurring && !pickDates.length) { Alert.alert('Pick your dates', 'Choose up to 3 dates that work for you.'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('request_current', { p_circuit_id: circuit.id });
+      const { error } = await supabase.rpc('request_current', {
+        p_circuit_id: circuit.id,
+        p_dates: isRecurring ? pickDates.map(ymd) : null,
+        p_note: isRecurring ? prefNote : null,
+      });
       if (error) throw error;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       trackEvent('circuit_requested', { circuit_id: circuit.id, business_id: circuit.business_id });
       fetchRedemptionStatus();
       setHasClaimed(true);
       setRedemptionStatus('requested');
+      setShowDates(false);
     } catch (e: any) {
       Alert.alert('Could not send', e.message);
     } finally {
@@ -258,7 +273,7 @@ export default function CircuitDetailScreen() {
     trackEvent('tickets_confirmed', { circuit_id: circuit.id, method: deliveryMethod });
     setConfirmedAt(new Date().toISOString());
     // Guest list / email: nothing to buy, so they're set once confirmed.
-    if (deliveryMethod !== 'code' && eventAt) handleBooked();
+    if (deliveryMethod !== 'code' && (eventAt || goingDate)) handleBooked();
   }
 
   useEffect(() => {
@@ -362,7 +377,7 @@ export default function CircuitDetailScreen() {
 
   async function handleBooked() {
     if (!redemptionId) return;
-    const visit = eventAt ?? bookedDate();
+    const visit = eventAt ?? goingDate ?? bookedDate();
     if (!visit) { Alert.alert('Pick a date', 'Enter the month and day you booked for.'); return; }
     setBooking(true);
     try {
@@ -430,6 +445,9 @@ export default function CircuitDetailScreen() {
     .map(p => (p === 'tiktok' ? 'TikTok' : 'Instagram'))
     .join(' or ');
   const eventAt = circuit.event_at ? new Date(circuit.event_at) : null;
+  // Recurring "You pick": the date the business confirmed (9 PM local anchors the post window)
+  const goingDate = goingOn ? new Date(`${goingOn}T21:00:00`) : null;
+  const goingStr = goingDate ? goingDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : null;
   const eventDateStr = eventAt
     ? eventAt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
       ' · ' + eventAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -562,6 +580,7 @@ export default function CircuitDetailScreen() {
                   effectiveMin != null ? `${minFollowersLabel(effectiveMin)} followers` : null,
                   postOnLabel ? `Post on ${postOnLabel}` : null,
                   circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
+                  isManual && isRecurring ? 'Multiple dates' : null,
                   isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} picks by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
                 ].filter(Boolean).map(x => `  ·  ${x}`).join('')}
               </Text>
@@ -632,6 +651,7 @@ export default function CircuitDetailScreen() {
           <View style={styles.stateBox}>
             <Text style={styles.stateTitle}>You got picked! 🎟️</Text>
             {eventDateStr ? <Text style={styles.stepNote}>{circuit.title} · {eventDateStr}</Text> : null}
+            {!eventDateStr && goingStr ? <Text style={[styles.stepText, { fontFamily: F.bodySemi }]}>You're going {goingStr}.</Text> : null}
             {deliveryMethod === 'code' ? (
               <>
                 <Text style={styles.stepText}>Use this code to get {ticketsLabel}:</Text>
@@ -878,11 +898,11 @@ export default function CircuitDetailScreen() {
           <TouchableOpacity style={[styles.button, confirming && styles.buttonDisabled]} onPress={handleConfirm} disabled={confirming}>
             <Text style={styles.buttonText}>{confirming ? 'Confirming…' : 'Got it!'}</Text>
           </TouchableOpacity>
-        ) : isApproved && isManual && deliveryMethod && deliveryMethod !== 'code' && eventAt ? null
+        ) : isApproved && isManual && deliveryMethod && deliveryMethod !== 'code' && (eventAt || goingDate) ? null
         : isApproved ? (
           <TouchableOpacity
             style={[styles.button, booking && styles.buttonDisabled]}
-            onPress={() => (eventAt ? handleBooked() : setShowBookModal(true))}
+            onPress={() => (eventAt || goingDate ? handleBooked() : setShowBookModal(true))}
             disabled={booking}
           >
             <Text style={styles.buttonText}>I got my tickets</Text>
@@ -925,7 +945,7 @@ export default function CircuitDetailScreen() {
         ) : (
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={() => creatorStatus === 'pending' ? setShowPendingModal(true) : setShowClaimModal(true)}
+            onPress={() => creatorStatus === 'pending' ? setShowPendingModal(true) : (isManual && isRecurring ? setShowDates(true) : setShowClaimModal(true))}
             disabled={loading}
           >
             <Text style={styles.buttonText}>{isManual ? "I'm interested" : 'Claim tickets'}</Text>
@@ -949,6 +969,64 @@ export default function CircuitDetailScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Recurring "You pick": choose up to 3 dates */}
+      <Modal visible={showDates} transparent animationType="slide" onRequestClose={() => setShowDates(false)}>
+        <View style={styles.datesOverlay}>
+          <View style={styles.datesSheet}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>Which dates work for you?</Text>
+              <Text style={styles.datesSub}>
+                Pick up to 3. {circuit.business?.business_name ?? 'The business'} will choose one when they approve you.
+              </Text>
+              {circuit.schedule_note ? (
+                <View style={styles.datesNote}>
+                  <Text style={styles.datesNoteLabel}>FROM {String(circuit.business?.business_name ?? 'the business').toUpperCase()}</Text>
+                  <Text style={styles.stepText}>{circuit.schedule_note}</Text>
+                </View>
+              ) : null}
+              {circuit.event_link ? (
+                <TouchableOpacity onPress={() => Linking.openURL(circuit.event_link!)} activeOpacity={0.7}>
+                  <Text style={[styles.eventLinkText, { marginBottom: 12 }]}>See dates on the event page →</Text>
+                </TouchableOpacity>
+              ) : null}
+              <DatePicker
+                value={null}
+                values={pickDates}
+                minDate={new Date()}
+                onChange={d => setPickDates(cur => {
+                  const has = cur.some(x => ymd(x) === ymd(d));
+                  if (has) return cur.filter(x => ymd(x) !== ymd(d));
+                  if (cur.length >= 3) { Alert.alert('Up to 3 dates', 'Tap a selected date to remove it.'); return cur; }
+                  return [...cur, d].sort((a, b) => +a - +b);
+                })}
+              />
+              {pickDates.length > 0 && (
+                <Text style={[styles.datesSub, { marginTop: 8 }]}>
+                  {pickDates.map(d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })).join(' · ')}
+                </Text>
+              )}
+              <TextInput
+                style={styles.datesInput}
+                value={prefNote}
+                onChangeText={setPrefNote}
+                placeholder="Times or anything else? (optional)"
+                placeholderTextColor={C.muted2}
+                maxLength={140}
+              />
+              <Text style={[styles.datesSub, { marginTop: 10 }]}>
+                If you're picked, you'll get {ticketsLabel} and have 72 hours to confirm. Post within 48 hours of going.
+              </Text>
+              <TouchableOpacity style={[styles.button, (loading || !pickDates.length) && styles.buttonDisabled]} onPress={handleRequest} disabled={loading || !pickDates.length}>
+                <Text style={styles.buttonText}>{loading ? 'Sending…' : "I'm interested"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowDates(false)}>
+                <Text style={styles.modalCancelText}>Never mind</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* Claim modal */}
@@ -1317,6 +1395,12 @@ const styles = StyleSheet.create({
   },
   claimRowText: { flex: 1, fontFamily: F.body, fontSize: 15, color: C.ink, lineHeight: 22 },
   claimBold: { fontFamily: F.bodySemi, color: C.ink },
+  datesOverlay: { flex: 1, backgroundColor: 'rgba(36,29,23,0.55)', justifyContent: 'flex-end' },
+  datesSheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: '92%' },
+  datesSub: { fontFamily: F.body, fontSize: 13.5, color: C.muted, lineHeight: 19, marginBottom: 12 },
+  datesNote: { backgroundColor: C.accentTint, borderRadius: R.md, padding: 12, marginBottom: 10, gap: 4 },
+  datesNoteLabel: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1, color: C.accent },
+  datesInput: { fontFamily: F.body, borderWidth: 1.5, borderColor: C.line2, borderRadius: R.md, padding: 12, fontSize: 14, color: C.ink, backgroundColor: C.paper, marginTop: 12 },
   claimWarnBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     backgroundColor: '#FEF2F2', borderRadius: R.md, padding: 12,

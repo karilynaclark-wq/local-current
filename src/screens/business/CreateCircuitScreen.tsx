@@ -19,6 +19,17 @@ const TIER_UPPER: Record<string, number> = {
   '10K–50K': 50_000, '50K–100K': 100_000, '100K+': Infinity,
 };
 const MAX_CREATORS = 50;
+/** "8pm", "7:30 PM", "19:00" → [hours, minutes], or null. */
+function parseTime(t: string): [number, number] | null {
+  const m = t.trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?$/);
+  if (!m) return null;
+  let h = +m[1]; const min = m[2] ? +m[2] : 0;
+  if (min > 59) return null;
+  if (m[3]) { if (h < 1 || h > 12) return null; h = (h % 12) + (m[3].startsWith('p') ? 12 : 0); }
+  else if (h > 23) return null;
+  return [h, min];
+}
+
 /** 11:59 PM on the given day. */
 function endOfDay(d: Date): Date {
   const x = new Date(d); x.setHours(23, 59, 0, 0); return x;
@@ -78,6 +89,11 @@ export default function CreateCircuitScreen() {
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
   const [approvalMode, setApprovalMode] = useState<'instant' | 'manual' | null>(null);
   const [deadline, setDeadline] = useState<Date | null>(null);
+  const [scheduleType, setScheduleType] = useState<'one_time' | 'recurring' | null>(null);
+  const [eventDay, setEventDay] = useState<Date | null>(null);
+  const [eventTime, setEventTime] = useState('');
+  const [anyDate, setAnyDate] = useState<boolean | null>(null);
+  const [scheduleNote, setScheduleNote] = useState('');
   const [ticketsPer, setTicketsPer] = useState<number>(2); // creator + guests
   const guestCount = ticketsPer - 1;
   const [codeMode, setCodeMode] = useState<'shared' | 'list'>('shared');
@@ -107,7 +123,20 @@ export default function CreateCircuitScreen() {
     }
     if (s === 2) {
       if (!approvalMode) return 'Choose how creators get tickets.';
-      if (approvalMode === 'manual') return deadline ? null : 'Pick a date to choose creators by.';
+      if (approvalMode === 'manual') {
+        if (!scheduleType) return 'Tell creators when the event is.';
+        if (scheduleType === 'one_time') {
+          if (!eventDay) return 'Pick the event date.';
+          if (!parseTime(eventTime)) return 'Add the start time, like 8:00 PM.';
+        }
+        if (scheduleType === 'recurring') {
+          if (anyDate === null) return 'Choose which dates creators can pick.';
+          if (anyDate === false && !scheduleNote.trim()) return 'Tell creators which days or times you prefer.';
+        }
+        if (!deadline) return 'Pick a date to choose creators by.';
+        if (scheduleType === 'one_time' && eventDay && deadline > eventDay) return 'Pick creators before the event date.';
+        return null;
+      }
       if (minFollowing === null) return 'Please choose a minimum following.';
       if (!maxRedemptions || maxRedemptions < 1) return 'Please choose how many creators get tickets.';
       if (approvalMode === 'instant' && codeMode === 'shared' && !sharedCode.trim()) return 'Please add the ticket code creators will use.';
@@ -145,6 +174,11 @@ export default function CreateCircuitScreen() {
         code_mode: approvalMode === 'instant' ? codeMode : null,
         approval_mode: approvalMode,
         request_deadline: approvalMode === 'manual' && deadline ? endOfDay(deadline).toISOString() : null,
+        schedule_type: approvalMode === 'manual' ? scheduleType : null,
+        schedule_note: approvalMode === 'manual' && scheduleType === 'recurring' && anyDate === false ? scheduleNote.trim() : null,
+        event_at: approvalMode === 'manual' && scheduleType === 'one_time' && eventDay && parseTime(eventTime)
+          ? (() => { const d = new Date(eventDay); const [h, m] = parseTime(eventTime)!; d.setHours(h, m, 0, 0); return d.toISOString(); })()
+          : null,
         eligibility_min_followers: approvalMode === 'manual' ? '' : [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: approvalMode === 'manual' || selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
         platform_followers: approvalMode === 'manual' ? null : Object.fromEntries(selectedPlatforms.map(p => [p, platformFollowers[p]])),
@@ -287,6 +321,47 @@ export default function CreateCircuitScreen() {
 
               {approvalMode === 'manual' && (
                 <>
+                  <Text style={[styles.label, styles.labelGap]}>When is it? <Text style={styles.req}>*</Text></Text>
+                  <View style={styles.platformRow}>
+                    {([['one_time', 'One time'], ['recurring', 'Recurring / multiple dates']] as const).map(([val, label]) => (
+                      <TouchableOpacity key={val} style={[styles.platformChip, scheduleType === val && styles.chipSelected]} onPress={() => setScheduleType(val)}>
+                        <Text style={[styles.chipText, { color: C.ink }, scheduleType === val && styles.chipTextSelected]}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {scheduleType === 'one_time' && (
+                    <View style={{ marginTop: 14 }}>
+                      <DatePicker value={eventDay} onChange={setEventDay} minDate={new Date(Date.now() + 86_400_000)} />
+                      <Text style={[styles.label, { marginTop: 14 }]}>Start time</Text>
+                      <TextInput style={styles.input} value={eventTime} onChangeText={setEventTime}
+                        placeholder="e.g. 8:00 PM" placeholderTextColor={C.muted2} autoCapitalize="none" autoCorrect={false} />
+                    </View>
+                  )}
+
+                  {scheduleType === 'recurring' && (
+                    <View style={{ marginTop: 14, gap: 10 }}>
+                      {([[true, 'Any date on our event page', 'Creators pick dates that work for them from your event page.'],
+                         [false, 'We prefer certain days or times', 'Tell creators what works best for you.']] as const).map(([val, label, sub]) => {
+                        const on = anyDate === val;
+                        return (
+                          <TouchableOpacity key={String(val)} style={[styles.modeCard, on && styles.modeCardOn]} onPress={() => setAnyDate(val)} activeOpacity={0.85}>
+                            <View style={[styles.radio, on && styles.radioOn]} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.modeTitle, on && { color: C.accent }]}>{label}</Text>
+                              <Text style={styles.modeSub}>{sub}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {anyDate === false && (
+                        <TextInput style={[styles.input, { marginBottom: 0 }]} value={scheduleNote} onChangeText={setScheduleNote}
+                          placeholder="e.g. Weeknights only, or Fri–Sat 8 PM shows" placeholderTextColor={C.muted2} maxLength={140} />
+                      )}
+                      <Text style={styles.hint}>Creators choose up to 3 dates when they ask for tickets. You pick one when you approve them.</Text>
+                    </View>
+                  )}
+
                   <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
                   <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
                   <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />

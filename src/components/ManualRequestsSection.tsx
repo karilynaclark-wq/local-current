@@ -22,6 +22,10 @@ const METHODS: { value: Method; label: string; sub: string }[] = [
 ];
 const METHOD_LABEL: Record<Method, string> = { code: 'Promo code', guest_list: 'Guest list', email: 'Email' };
 
+/** '2026-11-22' → 'Sat, Nov 22' (no timezone shift). */
+const fmtDay = (ymd: string) =>
+  new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
 const handleOf = (c: any) => {
   const h = c?.tiktok_handle || c?.instagram_handle;
   return h ? `@${String(h).replace('@', '')}` : (c?.profile?.full_name ?? 'Creator');
@@ -38,6 +42,8 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
   const [method, setMethod] = useState<Method>('code');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [going, setGoing] = useState<string | null>(null);
+  const recurring = circuit.schedule_type === 'recurring';
 
   const requested = redemptions.filter(r => r.status === 'requested')
     .sort((a, b) => (a.requested_at ?? '').localeCompare(b.requested_at ?? ''));
@@ -61,15 +67,17 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     const last = approved[approved.length - 1];
     setMethod((last?.delivery_method as Method) ?? 'code');
     setCode(last?.delivery_method === 'code' ? last.code ?? '' : '');
+    setGoing(r.preferred_dates?.length === 1 ? r.preferred_dates[0] : null);
     setApproving(r);
   }
 
   async function approve() {
     if (!approving) return;
+    if (recurring && !going) { Alert.alert('Pick a date', 'Choose which of their dates they\'re going.'); return; }
     if (method === 'code' && !code.trim()) { Alert.alert('Add the code', 'Type the promo code this creator will use.'); return; }
     setBusy(true);
     const { data: email, error } = await supabase.rpc('approve_request', {
-      p_redemption_id: approving.id, p_method: method, p_code: method === 'code' ? code.trim() : null,
+      p_redemption_id: approving.id, p_method: method, p_code: method === 'code' ? code.trim() : null, p_going: recurring ? going : null,
     });
     setBusy(false);
     if (error) { Alert.alert('Could not approve', error.message); return; }
@@ -79,7 +87,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     setApproving(null);
     onChanged();
     if (method === 'guest_list') {
-      Alert.alert('Approved', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have 72 hours to confirm.`);
+      Alert.alert('Approved', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have 72 hours to confirm.`);
     } else if (method === 'email') {
       Alert.alert('Approved', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have 72 hours to confirm.`);
     } else {
@@ -129,6 +137,13 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
               <Text style={st.meta}>{r.creator?.follower_range ? `${r.creator.follower_range} followers · ` : ''}View profile ›</Text>
             </View>
           </TouchableOpacity>
+          {recurring && !!r.preferred_dates?.length && (
+            <View style={st.datesRow}>
+              <Text style={st.datesLabel}>Can go</Text>
+              <Text style={st.datesText}>{r.preferred_dates.map(fmtDay).join(' · ')}</Text>
+              {!!r.preference_note && <Text style={st.prefNote}>"{r.preference_note}"</Text>}
+            </View>
+          )}
           <View style={st.actions}>
             <TouchableOpacity style={st.passBtn} onPress={() => pass(r)}><Text style={st.passText}>Pass</Text></TouchableOpacity>
             <TouchableOpacity style={[st.approveBtn, full && { opacity: 0.5 }]} onPress={() => openApprove(r)}>
@@ -154,6 +169,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
                       {r.delivery_method === 'code' && r.code ? ` · ${r.code}` : ''}
                       {r.delivery_method === 'guest_list' ? ` · ${r.creator?.profile?.full_name ?? ''}${tickets > 1 ? ` +${tickets - 1}` : ''}` : ''}
                     </Text>
+                    {recurring && r.going_on ? <Text style={st.goingText}>Going {fmtDay(r.going_on)}</Text> : null}
                     {!!email && (
                       <Text style={st.email} onPress={() => Linking.openURL(`mailto:${email}`)}
                         onLongPress={() => { Clipboard.setStringAsync(email); Alert.alert('Copied', email); }}>{email}</Text>
@@ -177,6 +193,19 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
           <View style={st.overlay}>
             <View style={st.sheet}>
               <Text style={st.sheetTitle}>Approve {handleOf(approving?.creator)}</Text>
+              {recurring && !!approving?.preferred_dates?.length && (
+                <>
+                  <Text style={st.sheetSub}>Which date are they going?</Text>
+                  <View style={st.dateChips}>
+                    {(approving.preferred_dates as string[]).map(d => (
+                      <TouchableOpacity key={d} style={[st.dateChip, going === d && st.dateChipOn]} onPress={() => setGoing(d)}>
+                        <Text style={[st.dateChipText, going === d && { color: '#fff' }]}>{fmtDay(d)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {!!approving.preference_note && <Text style={[st.prefNote, { marginBottom: 12 }]}>"{approving.preference_note}"</Text>}
+                </>
+              )}
               <Text style={st.sheetSub}>How will they get their {tickets} ticket{tickets === 1 ? '' : 's'}?</Text>
               {METHODS.map(m => (
                 <TouchableOpacity key={m.value} style={[st.option, method === m.value && st.optionOn]} onPress={() => setMethod(m.value)} activeOpacity={0.85}>
@@ -228,6 +257,15 @@ const st = StyleSheet.create({
   pillOk: { backgroundColor: '#DCEAD5' },
   pillWait: { backgroundColor: '#FEF3C7' },
   pillText: { fontFamily: F.bodySemi, fontSize: 11.5 },
+  datesRow: { backgroundColor: C.paper, borderRadius: R.sm, padding: 10, gap: 2 },
+  datesLabel: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1, color: C.muted2, textTransform: 'uppercase' },
+  datesText: { fontFamily: F.bodySemi, fontSize: 13.5, color: C.ink },
+  prefNote: { fontFamily: F.body, fontSize: 12.5, color: C.muted, fontStyle: 'italic' },
+  goingText: { fontFamily: F.bodySemi, fontSize: 12.5, color: C.ink, marginTop: 2 },
+  dateChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  dateChip: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.paper },
+  dateChipOn: { backgroundColor: C.accent, borderColor: C.accent },
+  dateChipText: { fontFamily: F.bodySemi, fontSize: 13.5, color: C.ink },
   overlay: { flex: 1, backgroundColor: 'rgba(36,29,23,0.55)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   sheetTitle: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 20, color: C.ink },

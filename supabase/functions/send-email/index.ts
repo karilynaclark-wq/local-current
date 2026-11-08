@@ -50,7 +50,7 @@ async function creatorInfo(db: SupabaseClient, creatorId: string) {
 
 async function circuitInfo(db: SupabaseClient, circuitId: string) {
   const { data } = await db.from('circuits')
-    .select('id, title, description, event_link, event_at, code_mode, approval_mode, request_deadline, guest_count, max_redemptions, min_followers, required_platform, created_at, business:businesses(id, business_name, profile_id, instagram_handle, tiktok_handle)')
+    .select('id, title, description, event_link, event_at, code_mode, approval_mode, request_deadline, schedule_type, guest_count, max_redemptions, min_followers, required_platform, created_at, business:businesses(id, business_name, profile_id, instagram_handle, tiktok_handle)')
     .eq('id', circuitId).single();
   return data as any;
 }
@@ -255,7 +255,7 @@ const CONFIRM_HOURS = 72;
 
 async function approved(db: SupabaseClient, id: string) {
   const { data: red } = await db.from('redemptions')
-    .select('id, creator_id, circuit_id, code, delivery_method').eq('id', id).single();
+    .select('id, creator_id, circuit_id, code, delivery_method, going_on').eq('id', id).single();
   if (!red?.delivery_method || !(await once(db, `ap:${id}`))) return;
   const [ci, c] = await Promise.all([circuitInfo(db, red.circuit_id), creatorInfo(db, red.creator_id)]);
   if (!ci || !c) return;
@@ -276,7 +276,9 @@ async function approved(db: SupabaseClient, id: string) {
     await send(r.email, `You're going to ${ci.title}!`, layout({
       tag: "You're in", preview: `${bizName} picked you. Confirm within 72 hours to keep your spot.`,
       body: hi(`You got picked, ${esc(r.first)}!`) +
-        p(`${b(bizName)} chose you for ${b(ci.title)}.`) + how +
+        p(`${b(bizName)} chose you for ${b(ci.title)}.`) +
+        (red.going_on ? p(`You're going ${b(new Date(`${red.going_on}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}.`) : '') +
+        how +
         p(`<strong>Tap "Got it!" in the app within 72 hours</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
         btn('Got it!', appLink(`event/${ci.id}`)) +
         p('<strong>For your post</strong>') +

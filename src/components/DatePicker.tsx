@@ -9,8 +9,10 @@ const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-export default function DatePicker({ value, onChange, minDate }: {
+export default function DatePicker({ value, values, onChange, minDate }: {
   value: Date | null;
+  /** Extra highlighted days (multi-select: parent toggles on tap). */
+  values?: Date[];
   onChange: (d: Date) => void;
   minDate?: Date;
 }) {
@@ -45,7 +47,7 @@ export default function DatePicker({ value, onChange, minDate }: {
             if (!d) return <View key={i} style={st.cell} />;
             const date = new Date(month.getFullYear(), month.getMonth(), d);
             const disabled = !!min && date < min;
-            const on = !!value && sameDay(date, value);
+            const on = (!!value && sameDay(date, value)) || !!values?.some(v => sameDay(date, v));
             return (
               <TouchableOpacity key={i} style={st.cell} disabled={disabled} onPress={() => onChange(date)} activeOpacity={0.7}>
                 <View style={[st.day, on && st.dayOn]}>

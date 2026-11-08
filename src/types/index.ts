@@ -59,6 +59,8 @@ export interface Circuit {
   code_mode?: 'shared' | 'list' | null;
   approval_mode?: 'instant' | 'manual';
   request_deadline?: string | null;
+  schedule_type?: 'one_time' | 'recurring' | null;
+  schedule_note?: string | null;
   starts_at: string | null;
   expires_at: string | null;
   voucher_description: string | null;

@@ -167,7 +167,7 @@ export default function BusinessCircuitDetailScreen() {
 
     const claimsRes = await supabase
       .from('redemptions')
-      .select('id, status, creator_id, business_rating, business_rated_at, business_public_review, business_review_anonymous, requested_at, claimed_at, access_details, code, delivery_method, confirmed_at')
+      .select('id, status, creator_id, business_rating, business_rated_at, business_public_review, business_review_anonymous, requested_at, claimed_at, access_details, code, delivery_method, confirmed_at, preferred_dates, preference_note, going_on')
       .eq('circuit_id', route.params.circuit.id);
     const redemptionData: RedemptionWithRating[] = claimsRes.data ?? [];
     const redemptionIds = redemptionData.map((r: any) => r.id);
