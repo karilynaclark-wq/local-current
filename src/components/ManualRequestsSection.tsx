@@ -112,11 +112,11 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     setApproving(null);
     onChanged();
     if (method === 'guest_list') {
-      Alert.alert('Invited', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have up to 72 hours to confirm.`);
+      Alert.alert('Invited', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have up to 72 hours to accept.`);
     } else if (method === 'email') {
-      Alert.alert('Invited', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have up to 72 hours to confirm.`);
+      Alert.alert('Invited', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have up to 72 hours to accept.`);
     } else {
-      Alert.alert('Invited', `${who} has the code. They have up to 72 hours to confirm.`);
+      Alert.alert('Invited', `${who} has the code. They have up to 72 hours to accept.`);
     }
   }
 
@@ -202,14 +202,14 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
                   </View>
                   <View style={[st.pill, r.confirmed_at ? st.pillOk : st.pillWait]}>
                     <Text style={[st.pillText, r.confirmed_at ? { color: C.ok } : { color: '#92400E' }]}>
-                      {r.confirmed_at || r.status !== 'approved' ? 'Confirmed' : 'Waiting'}
+                      {r.confirmed_at || r.status !== 'approved' ? 'Accepted' : 'Waiting'}
                     </Text>
                   </View>
                 </View>
               </View>
             );
           })}
-          <Text style={st.sub}>Creators have up to 72 hours to confirm. If they don't, the spot opens back up.</Text>
+          <Text style={st.sub}>Creators have up to 72 hours to accept. If they don't, the spot opens back up.</Text>
         </>
       )}
 

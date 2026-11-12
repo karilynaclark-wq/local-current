@@ -22,7 +22,7 @@ function instantSteps(tickets: number): Step[] {
 const MANUAL_STEPS: Step[] = [
   { icon: 'film', title: 'Creators request an invite', desc: "You'll review and invite or decline.", notify: true },
   { icon: 'check', title: 'You choose who to invite', desc: 'Invite creators anytime, even before the deadline. Choose how they get tickets: a promo code, the guest list, or email.', notify: false },
-  { icon: 'bell', title: 'They confirm', desc: 'Creators have up to 72 hours to tap "Got it!" If they don\'t, their spot opens back up.', notify: true },
+  { icon: 'bell', title: 'They accept', desc: 'Creators have up to 72 hours to accept your invite (or confirm they got tickets with your code). If they don\'t, their spot opens back up.', notify: true },
   { icon: 'sparkles', title: 'They attend and post', desc: 'An honest video within 48 hours of your event.', notify: true },
   { icon: 'eye', title: 'You track the results', desc: 'Views and engagement for every post, in one place.', notify: false },
 ];

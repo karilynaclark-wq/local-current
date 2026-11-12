@@ -169,6 +169,8 @@ export default function CircuitDetailScreen() {
   const [prefNote, setPrefNote] = useState('');
   const isRecurring = circuit.schedule_type === 'recurring';
   const isManual = circuit.approval_mode === 'manual';
+  // Accepting an invite depends on how tickets are delivered.
+  const acceptLabel = (m: string | null) => m === 'code' ? 'I got my tickets with the code' : 'Accept invite';
   const ticketCount = (circuit.guest_count ?? 1) + 1;
   const ticketsLabel = ticketCount === 1 ? '1 free ticket' : `${ticketCount} free tickets`;
 
@@ -279,7 +281,7 @@ export default function CircuitDetailScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     trackEvent('tickets_confirmed', { circuit_id: circuit.id, method: deliveryMethod });
     setConfirmedAt(new Date().toISOString());
-    notifyBusiness('Creator confirmed ✅', `${creatorName || 'A creator'} confirmed for ${circuit.title}${goingStr ? ` on ${goingStr}` : ''}.`);
+    notifyBusiness('Invite accepted ✅', `${creatorName || 'A creator'} accepted your invite to ${circuit.title}${goingStr ? ` on ${goingStr}` : ''}.`);
     // Guest list / email: nothing to buy, so they're set once confirmed.
     // Date known → confirming is the only step (no separate "I got my tickets").
     if (eventAt || goingDate) handleBooked();
@@ -620,7 +622,7 @@ export default function CircuitDetailScreen() {
               <Text style={styles.stepText}>
                 {circuit.business?.business_name ?? 'The business'} sends invites
                 {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
-                We'll let you know if you're invited, and you'll have up to 72 hours to confirm.
+                We'll let you know if you're invited, and you'll have up to 72 hours to accept.
               </Text>
             ) : null}
             {isManual && circuit.request_deadline && new Date(circuit.request_deadline) < new Date() ? (
@@ -705,10 +707,12 @@ export default function CircuitDetailScreen() {
             )}
             {!confirmedAt ? (
               <Text style={[styles.stepNote, { color: '#92400E' }]}>
-                Tap "Got it!" by {confirmByStr} to keep your spot, or your tickets go to another creator.
+                {deliveryMethod === 'code'
+                  ? `Use the code to get your tickets, then tap "I got my tickets" by ${confirmByStr} to keep your spot.`
+                  : `Tap "Accept invite" by ${confirmByStr} to keep your spot.`} Otherwise your tickets go to another creator.
               </Text>
             ) : (
-              <Text style={[styles.stepNote, { color: C.ok }]}>Confirmed. See you there!</Text>
+              <Text style={[styles.stepNote, { color: C.ok }]}>You accepted. See you there!</Text>
             )}
             <Text style={styles.stepText}>After the event, post within 48 hours with #localcurrentapp in your caption.</Text>
           </View>
@@ -919,7 +923,7 @@ export default function CircuitDetailScreen() {
           </View>
         ) : isApproved && isManual && deliveryMethod && !confirmedAt ? (
           <TouchableOpacity style={[styles.button, confirming && styles.buttonDisabled]} onPress={handleConfirm} disabled={confirming}>
-            <Text style={styles.buttonText}>{confirming ? 'Confirming…' : 'Got it!'}</Text>
+            <Text style={styles.buttonText}>{confirming ? 'Confirming…' : acceptLabel(deliveryMethod)}</Text>
           </TouchableOpacity>
         ) : isApproved && isManual && deliveryMethod && (eventAt || goingDate) ? null
         : isApproved ? (
@@ -1039,7 +1043,7 @@ export default function CircuitDetailScreen() {
                 maxLength={140}
               />
               <Text style={[styles.datesSub, { marginTop: 10 }]}>
-                If you're invited, you'll get {ticketsLabel} and have up to 72 hours to confirm. Post within 48 hours of going.
+                If you're invited, you'll get {ticketsLabel} and have up to 72 hours to accept. Post within 48 hours of going.
               </Text>
               <TouchableOpacity style={[styles.button, (loading || !pickDates.length) && styles.buttonDisabled]} onPress={handleRequest} disabled={loading || !pickDates.length}>
                 <Text style={styles.buttonText}>{loading ? 'Sending…' : 'Request an invite'}</Text>
@@ -1062,7 +1066,7 @@ export default function CircuitDetailScreen() {
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
                 {isManual
-                  ? <>{circuit.business?.business_name ?? 'The business'} sends invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to confirm</Text>.</>
+                  ? <>{circuit.business?.business_name ?? 'The business'} sends invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to accept</Text>.</>
                   : <>You'll get a <Text style={styles.claimBold}>code for {ticketsLabel}</Text> to use online right away.</>}
               </Text>
             </View>
