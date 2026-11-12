@@ -607,7 +607,7 @@ export default function CircuitDetailScreen() {
                   postOnLabel ? `Post on ${postOnLabel}` : null,
                   circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
                   isManual && isRecurring ? 'Multiple dates' : null,
-                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} invites by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
+                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} will send invites by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
                 ].filter(Boolean).map((x, i) => (i === 0 && eligStatus === null ? x : `  ·  ${x}`)).join('')}
               </Text>
             </TouchableOpacity>
