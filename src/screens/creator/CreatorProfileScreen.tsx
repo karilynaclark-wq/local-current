@@ -421,7 +421,7 @@ export default function CreatorProfileScreen() {
               <View style={styles.emptyBox}>
                 <Icon name="star" size={32} color={C.muted2} />
                 <Text style={styles.emptyTitle}>No reviews yet</Text>
-                <Text style={styles.emptySubtitle}>Businesses will rate you after your content goes live</Text>
+                <Text style={styles.emptySubtitle}>Local Current is built on mutual trust. Businesses can leave a review after your content goes live, and you can do the same for them.</Text>
               </View>
             ) : (
               <View style={{ gap: 12 }}>
