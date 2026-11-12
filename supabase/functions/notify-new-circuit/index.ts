@@ -103,13 +103,13 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
       const by = (circuit as any).request_deadline
         ? new Date((circuit as any).request_deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
       await send(r.email, `Free tickets: ${circuit.title}`, layout({
-        tag: 'New event', preview: manual ? `${biz} is picking creators${by ? ` by ${by}` : ''}. Want in?` : `${biz} is giving ${tix} to ${spots} creators. Want in?`,
+        tag: 'New event', preview: manual ? `${biz} is inviting creators${by ? ` by ${by}` : ''}. Want in?` : `${biz} is giving ${tix} to ${spots} creators. Want in?`,
         body: hi(`Hi ${esc(r.first)}, want to go?`) +
           p(`${b(biz)} wants to give ${tix} to ${b(circuit.title)}.${withWho}`) +
-          card(esc(biz), esc(circuit.title), esc(circuit.description ?? ''), manual ? 'They pick' : `${spots} spots`) +
+          card(esc(biz), esc(circuit.title), esc(circuit.description ?? ''), manual ? 'Invite only' : `${spots} spots`) +
           (manual
-            ? p(`${esc(biz)} is choosing who goes${by ? ` by ${esc(by)}` : ''}. Tap "I'm interested" to put your name in.`) +
-              btn("I'm interested", appLink(`event/${circuit.id}`))
+            ? p(`${esc(biz)} is choosing who to invite${by ? ` by ${esc(by)}` : ''}. Request an invite to put your name in.`) +
+              btn('Request an invite', appLink(`event/${circuit.id}`))
             : p(`Only ${spots} creators get in, and it's first come, first served. If you want it, grab it.`) +
               btn('Claim tickets', appLink(`event/${circuit.id}`))),
         footer: await prefsFooter("You're getting this because events are open to your tier.", c.profile_id),
@@ -132,7 +132,7 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
     to,
     title: 'Free tickets 🎟️',
     body: manual
-      ? `${businessName} is picking creators for ${what}. Tap "I'm interested"${by ? ` by ${by}` : ''}.`
+      ? `${businessName} is inviting creators to ${what}. Request an invite${by ? ` by ${by}` : ''}.`
       : opened
         ? `${businessName}: ${what} just opened to you. Claim ${tix} before they're gone.`
         : `${businessName}: ${what}. Claim ${tix} before they're gone.`,

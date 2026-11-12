@@ -29,7 +29,7 @@ type Step = 1 | 2;
 const WELCOME_PAGES: WelcomePage[] = [
   { icon: 'sparkles', title: "You're in!", body: 'Welcome to Local Current. Chicago creators are ready to come to your events.', cta: 'Show me how it works' },
   { icon: 'ticket', title: 'Post an event', body: 'Add your event link and choose how many free tickets each creator gets.', cta: 'Next' },
-  { icon: 'person', title: 'Pick how creators join', body: 'Let creators claim instantly with your promo code, or have them tell you they\'re interested and pick who goes.', cta: 'Next' },
+  { icon: 'person', title: 'Pick how creators join', body: 'Let creators claim instantly with your promo code, or have them request an invite and choose who to invite.', cta: 'Next' },
   { icon: 'film', title: 'See the results', body: "Creators post an honest video within 48 hours, and you'll see views and engagement for every post.", cta: 'Next' },
   { icon: 'bell', title: 'Stay in the loop', body: "We'll let you know when creators claim or ask for tickets, and when their videos go live.", cta: 'Turn on notifications' },
 ];

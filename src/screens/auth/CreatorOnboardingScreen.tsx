@@ -19,7 +19,7 @@ import {
 // Shown once, right after sign-up, before the creator reaches the app.
 const WELCOME_PAGES: WelcomePage[] = [
   { icon: 'sparkles', title: "You're in!", body: 'Welcome to Local Current. Free tickets to Chicago events are waiting.', cta: 'Show me how it works' },
-  { icon: 'ticket', title: 'Get free tickets', body: 'Claim tickets instantly, or tap "I\'m interested" on events where the business picks who goes.', cta: 'Next' },
+  { icon: 'ticket', title: 'Get free tickets', body: 'Claim tickets instantly, or tap "Request an invite" on events where the business chooses who goes.', cta: 'Next' },
   { icon: 'pin', title: 'Go and have fun', body: 'Grab your tickets the way the business sets up, like a code or the guest list, then enjoy the night.', cta: 'Next' },
   { icon: 'film', title: 'Post within 48 hours', body: "Share an honest video and add #localcurrentapp to the caption so it's sent to the business.", cta: 'Next' },
   { icon: 'bell', title: "Don't miss a drop", body: "Tickets go fast. We'll let you know when an event opens to you and when a business picks you.", cta: 'Turn on notifications' },

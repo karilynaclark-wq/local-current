@@ -605,7 +605,7 @@ export default function CircuitDetailScreen() {
                   postOnLabel ? `Post on ${postOnLabel}` : null,
                   circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
                   isManual && isRecurring ? 'Multiple dates' : null,
-                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} picks by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
+                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} invites by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
                 ].filter(Boolean).map((x, i) => (i === 0 && eligStatus === null ? x : `  ·  ${x}`)).join('')}
               </Text>
             </TouchableOpacity>
@@ -615,17 +615,17 @@ export default function CircuitDetailScreen() {
         {/* ── Requested: waiting on the business ── */}
         {isRequested && (
           <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>{isManual ? "You're on the waitlist" : 'Request sent 🙌'}</Text>
+            <Text style={styles.stateTitle}>{isManual ? 'Invite requested' : 'Request sent 🙌'}</Text>
             {isManual ? (
               <Text style={styles.stepText}>
-                {circuit.business?.business_name ?? 'The business'} picks creators
+                {circuit.business?.business_name ?? 'The business'} sends invites
                 {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
-                We'll notify you if you're picked, and you'll have up to 72 hours to confirm.
+                We'll let you know if you're invited, and you'll have up to 72 hours to confirm.
               </Text>
             ) : null}
             {isManual && circuit.request_deadline && new Date(circuit.request_deadline) < new Date() ? (
               <Text style={styles.stepNote}>
-                The deadline has passed. Waiting on {circuit.business?.business_name ?? 'the business'} to pick.
+                The deadline has passed. Waiting on {circuit.business?.business_name ?? 'the business'} to send invites.
               </Text>
             ) : null}
           </View>
@@ -641,7 +641,7 @@ export default function CircuitDetailScreen() {
             </Text>
             <Text style={styles.stepText}>
               {redemptionStatus === 'declined'
-                ? (isManual ? 'Not this time. More events are coming!' : "The business went with other creators for this one. Don't sweat it, there are more currents to request.")
+                ? (isManual ? "You weren't invited this time. More events are coming!" : "The business went with other creators for this one. Don't sweat it, there are more currents to request.")
                 : redemptionStatus === 'expired' && isManual
                 ? "We didn't hear back within 72 hours, so your tickets went to another creator."
                 : redemptionStatus === 'expired'
@@ -650,7 +650,7 @@ export default function CircuitDetailScreen() {
             </Text>
             {['declined', 'expired'].includes(redemptionStatus ?? '') && otherEvents.length > 0 && (
               <View style={{ marginTop: 12, gap: 8 }}>
-                <Text style={[styles.stepText, { fontFamily: F.bodySemi }]}>Other events you can ask for</Text>
+                <Text style={[styles.stepText, { fontFamily: F.bodySemi }]}>Other events you can request</Text>
                 {otherEvents.map(ev => (
                   <TouchableOpacity key={ev.id} style={styles.eventCard} onPress={() => navigation.push('CircuitDetail', { circuit: ev })} activeOpacity={0.8}>
                     <Text style={styles.eventCardLabel} numberOfLines={1}>{ev.title}</Text>
@@ -668,7 +668,7 @@ export default function CircuitDetailScreen() {
         {/* ── Picked (manual): how to get tickets + "Got it!" ── */}
         {isApproved && isManual && deliveryMethod && (
           <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>You got picked! 🎟️</Text>
+            <Text style={styles.stateTitle}>You're invited! 🎟️</Text>
             {eventDateStr ? <Text style={styles.stepNote}>{circuit.title} · {eventDateStr}</Text> : null}
             {!eventDateStr && goingStr ? <Text style={[styles.stepText, { fontFamily: F.bodySemi }]}>You're going {goingStr}.</Text> : null}
             {deliveryMethod === 'code' ? (
@@ -893,7 +893,7 @@ export default function CircuitDetailScreen() {
               <Text style={styles.unclaimBtnText}>Report an issue</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.unclaimBtn} onPress={() => setShowUnclaimModal(true)}>
-              <Text style={styles.unclaimBtnText}>{isRequested ? (isManual ? 'Leave the waitlist' : 'Withdraw request') : 'Give up my tickets'}</Text>
+              <Text style={styles.unclaimBtnText}>{isRequested ? (isManual ? 'Cancel my request' : 'Withdraw request') : 'Give up my tickets'}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -971,7 +971,7 @@ export default function CircuitDetailScreen() {
             onPress={() => creatorStatus === 'pending' ? setShowPendingModal(true) : (isManual && isRecurring ? setShowDates(true) : setShowClaimModal(true))}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{isManual ? "I'm interested" : 'Claim tickets'}</Text>
+            <Text style={styles.buttonText}>{isManual ? 'Request an invite' : 'Claim tickets'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1039,10 +1039,10 @@ export default function CircuitDetailScreen() {
                 maxLength={140}
               />
               <Text style={[styles.datesSub, { marginTop: 10 }]}>
-                If you're picked, you'll get {ticketsLabel} and have up to 72 hours to confirm. Post within 48 hours of going.
+                If you're invited, you'll get {ticketsLabel} and have up to 72 hours to confirm. Post within 48 hours of going.
               </Text>
               <TouchableOpacity style={[styles.button, (loading || !pickDates.length) && styles.buttonDisabled]} onPress={handleRequest} disabled={loading || !pickDates.length}>
-                <Text style={styles.buttonText}>{loading ? 'Sending…' : "I'm interested"}</Text>
+                <Text style={styles.buttonText}>{loading ? 'Sending…' : 'Request an invite'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowDates(false)}>
                 <Text style={styles.modalCancelText}>Never mind</Text>
@@ -1056,13 +1056,13 @@ export default function CircuitDetailScreen() {
       <Modal visible={showClaimModal} transparent animationType="fade" onRequestClose={() => setShowClaimModal(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowClaimModal(false)}>
           <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>{isManual ? 'Ask for tickets?' : 'Claim your tickets?'}</Text>
+            <Text style={styles.modalTitle}>{isManual ? 'Request an invite?' : 'Claim your tickets?'}</Text>
 
             <View style={styles.claimRow}>
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
                 {isManual
-                  ? <>{circuit.business?.business_name ?? 'The business'} picks creators{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to confirm</Text>.</>
+                  ? <>{circuit.business?.business_name ?? 'The business'} sends invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to confirm</Text>.</>
                   : <>You'll get a <Text style={styles.claimBold}>code for {ticketsLabel}</Text> to use online right away.</>}
               </Text>
             </View>
@@ -1086,7 +1086,7 @@ export default function CircuitDetailScreen() {
               </Text>
             </View>
             <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { setShowClaimModal(false); isManual ? handleRequest() : handleClaim(); }} disabled={loading}>
-              <Text style={styles.buttonText}>{loading ? 'Sending…' : isManual ? "I'm interested" : 'I understand, claim tickets'}</Text>
+              <Text style={styles.buttonText}>{loading ? 'Sending…' : isManual ? 'Request an invite' : 'I understand, claim tickets'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowClaimModal(false)}>
               <Text style={styles.modalCancelText}>Never mind</Text>
@@ -1102,11 +1102,11 @@ export default function CircuitDetailScreen() {
             <Text style={styles.modalTitle}>Are you sure?</Text>
             <Text style={styles.modalBody}>
               {isRequested
-                ? (isManual ? "You'll be taken off the waitlist for this event." : "The business won't see your request anymore.")
+                ? (isManual ? "Your invite request for this event will be canceled." : "The business won't see your request anymore.")
                 : "Backing out after claiming can count against you. Don't use the code if you give up your tickets."}
             </Text>
             <TouchableOpacity style={[styles.unclaimConfirmBtn, loading && styles.buttonDisabled]} onPress={handleWithdraw} disabled={loading}>
-              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? (isManual ? 'Yes, leave the waitlist' : 'Yes, withdraw') : 'Yes, give up my tickets'}</Text>
+              <Text style={styles.unclaimConfirmBtnText}>{loading ? 'Withdrawing…' : isRequested ? (isManual ? 'Yes, cancel request' : 'Yes, withdraw') : 'Yes, give up my tickets'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowUnclaimModal(false)}>
               <Text style={styles.modalCancelText}>Nevermind</Text>

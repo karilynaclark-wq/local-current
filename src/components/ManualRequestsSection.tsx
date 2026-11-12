@@ -88,7 +88,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
   }, [circuit.id, redemptions]);
 
   function openApprove(r: any) {
-    if (full) { Alert.alert('All spots filled', `You've already approved ${spots} creator${spots === 1 ? '' : 's'}.`); return; }
+    if (full) { Alert.alert('All spots filled', `You've already invited ${spots} creator${spots === 1 ? '' : 's'}.`); return; }
     const last = approved[approved.length - 1];
     setMethod((last?.delivery_method as Method) ?? 'code');
     setCode(last?.delivery_method === 'code' ? last.code ?? '' : '');
@@ -112,11 +112,11 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     setApproving(null);
     onChanged();
     if (method === 'guest_list') {
-      Alert.alert('Approved', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have up to 72 hours to confirm.`);
+      Alert.alert('Invited', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have up to 72 hours to confirm.`);
     } else if (method === 'email') {
-      Alert.alert('Approved', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have up to 72 hours to confirm.`);
+      Alert.alert('Invited', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have up to 72 hours to confirm.`);
     } else {
-      Alert.alert('Approved', `${who} has the code. They have up to 72 hours to confirm.`);
+      Alert.alert('Invited', `${who} has the code. They have up to 72 hours to confirm.`);
     }
   }
 
@@ -124,7 +124,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     Alert.alert(`Pass on ${handleOf(r.creator)}?`, "They'll hear back when your event starts.", [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Pass', style: 'destructive', onPress: async () => {
+        text: 'Decline', style: 'destructive', onPress: async () => {
           const { error } = await supabase.rpc('pass_request', { p_redemption_id: r.id });
           if (error) { Alert.alert('Error', error.message); return; }
           trackEvent('request_passed', { circuit_id: circuit.id });
@@ -141,18 +141,18 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
   return (
     <View style={{ marginBottom: 20 }}>
       <View style={st.headRow}>
-        <Text style={st.title}>Interested creators</Text>
-        <Text style={st.count}>{spots ? `${filled} of ${spots} picked` : `${filled} picked`}</Text>
+        <Text style={st.title}>Invite requests</Text>
+        <Text style={st.count}>{spots ? `${filled} of ${spots} invited` : `${filled} invited`}</Text>
       </View>
       {deadline && (
         <Text style={st.sub}>
-          {deadline > new Date() ? 'Creators can ask until ' : 'Requests closed '}
-          {deadline.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}. You can approve anytime.
+          {deadline > new Date() ? 'Creators can request until ' : 'Requests closed '}
+          {deadline.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}. You can invite anytime.
         </Text>
       )}
 
       {requested.length === 0 ? (
-        <Text style={st.empty}>No one yet. We'll notify you as creators ask for tickets.</Text>
+        <Text style={st.empty}>No one yet. We'll notify you as creators request invites.</Text>
       ) : requested.map(r => (
         <View key={r.id} style={st.card}>
           <TouchableOpacity style={st.who} onPress={() => r.creator && navigation.navigate('CreatorPublicProfile', { creatorId: r.creator.id })} activeOpacity={0.7}>
@@ -170,9 +170,9 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
             </View>
           )}
           <View style={st.actions}>
-            <TouchableOpacity style={st.passBtn} onPress={() => pass(r)}><Text style={st.passText}>Pass</Text></TouchableOpacity>
+            <TouchableOpacity style={st.passBtn} onPress={() => pass(r)}><Text style={st.passText}>Decline</Text></TouchableOpacity>
             <TouchableOpacity style={[st.approveBtn, full && { opacity: 0.5 }]} onPress={() => openApprove(r)}>
-              <Text style={st.approveText}>Approve</Text>
+              <Text style={st.approveText}>Invite</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -180,7 +180,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
 
       {approved.length > 0 && (
         <>
-          <Text style={[st.title, { marginTop: 18, marginBottom: 8 }]}>Approved</Text>
+          <Text style={[st.title, { marginTop: 18, marginBottom: 8 }]}>Invited</Text>
           {approved.map(r => {
             const email = emails[r.id];
             return (
@@ -217,7 +217,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={st.overlay}>
             <View style={st.sheet}>
-              <Text style={st.sheetTitle}>Approve {handleOf(approving?.creator)}</Text>
+              <Text style={st.sheetTitle}>Invite {handleOf(approving?.creator)}</Text>
               {recurring && !!approving?.preferred_dates?.length && (
                 <>
                   <Text style={st.sheetSub}>Which date are they going?</Text>
@@ -246,7 +246,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
                   placeholderTextColor={C.muted2} autoCapitalize="characters" autoCorrect={false} />
               )}
               <TouchableOpacity style={[st.save, busy && { opacity: 0.6 }]} onPress={approve} disabled={busy}>
-                <Text style={st.saveText}>{busy ? 'Approving…' : 'Approve'}</Text>
+                <Text style={st.saveText}>{busy ? 'Inviting…' : 'Send invite'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={st.cancel} onPress={() => setApproving(null)}>
                 <Text style={st.cancelText}>Cancel</Text>

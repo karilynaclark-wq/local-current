@@ -445,9 +445,9 @@ export default function BusinessCircuitDetailScreen() {
             <View style={styles.statsRow}>
               {[
                 {
-                  num: stats.claims, label: circuit.approval_mode === 'manual' ? 'Picked' : 'Claimed',
+                  num: stats.claims, label: circuit.approval_mode === 'manual' ? 'Invited' : 'Claimed',
                   onPress: () => setCreatorListModal({
-                    title: circuit.approval_mode === 'manual' ? 'Picked' : 'Claimed',
+                    title: circuit.approval_mode === 'manual' ? 'Invited' : 'Claimed',
                     creators: redemptions
                       .filter((r: any) => FILLED_STATUSES.includes(r.status))
                       .map((r: any) => r.creator).filter(Boolean),

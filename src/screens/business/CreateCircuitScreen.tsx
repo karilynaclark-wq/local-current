@@ -133,8 +133,8 @@ export default function CreateCircuitScreen() {
           if (anyDate === null) return 'Choose which dates creators can pick.';
           if (anyDate === false && !scheduleNote.trim()) return 'Tell creators which days or times you prefer.';
         }
-        if (!deadline) return 'Pick a date to choose creators by.';
-        if (scheduleType === 'one_time' && eventDay && deadline > eventDay) return 'Pick creators before the event date.';
+        if (!deadline) return 'Pick a date to send invites by.';
+        if (scheduleType === 'one_time' && eventDay && deadline > eventDay) return 'Send invites before the event date.';
         return null;
       }
       if (minFollowing === null) return 'Please choose a minimum following.';
@@ -304,7 +304,7 @@ export default function CreateCircuitScreen() {
               <View style={styles.modeCol}>
                 {([
                   ['instant', 'Instant claim', 'Creators who meet your requirements claim tickets and get your code right away. Requires a discount code creators can redeem online right away.'],
-                  ['manual', 'You pick', 'Creators tap "I\'m interested" before a deadline. You approve who goes and choose how they get tickets.'],
+                  ['manual', 'Request an invite', 'Creators request an invite before a deadline. You invite or decline each one and choose how they get tickets.'],
                 ] as const).map(([val, label, sub]) => {
                   const on = approvalMode === val;
                   return (
@@ -360,7 +360,7 @@ export default function CreateCircuitScreen() {
                         <TextInput style={[styles.input, { marginBottom: 0 }]} value={scheduleNote} onChangeText={setScheduleNote}
                           placeholder="e.g. Weeknights only, or Fri–Sat 8 PM shows" placeholderTextColor={C.muted2} maxLength={140} />
                       )}
-                      <Text style={styles.hint}>Creators choose up to 3 dates when they ask for tickets. You pick one when you approve them.</Text>
+                      <Text style={styles.hint}>Creators choose up to 3 dates when they ask for tickets. You pick one when you invite them.</Text>
                     </View>
                   )}
 
@@ -368,8 +368,8 @@ export default function CreateCircuitScreen() {
 
               {approvalMode === 'manual' && (
                 <>
-                  <Text style={[styles.label, styles.labelGap]}>Pick creators by <Text style={styles.req}>*</Text></Text>
-                  <Text style={styles.hint}>Creators can ask for tickets until this date. You can approve anytime, even before it.</Text>
+                  <Text style={[styles.label, styles.labelGap]}>Send invites by <Text style={styles.req}>*</Text></Text>
+                  <Text style={styles.hint}>Creators can request an invite until this date. You can invite anytime, even before it.</Text>
                   <DatePicker value={deadline} onChange={setDeadline} minDate={new Date(Date.now() + 86_400_000)} />
                   {deadline && (
                     <Text style={[styles.hint, { marginTop: 8 }]}>
@@ -518,7 +518,7 @@ export default function CreateCircuitScreen() {
 
               {approvalMode === 'manual' && (
                 <Text style={[styles.hint, { marginTop: 22 }]}>
-                  You'll see everyone who's interested and choose who goes. When you approve someone, you pick how they get tickets: a promo code, the guest list, or by email.
+                  You'll see every invite request and choose who to invite. When you invite someone, you pick how they get tickets: a promo code, the guest list, or by email.
                 </Text>
               )}
             </>

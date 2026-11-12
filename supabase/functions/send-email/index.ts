@@ -68,7 +68,7 @@ async function creatorSignup(db: SupabaseClient, id: string) {
         body: hi(`Welcome, ${esc(r.first)}. You're in.`) +
           p('Chicago businesses give creators like you free tickets to their events. All they ask for is an honest video. Here\'s how it works:') +
           ol([
-            ['Claim or ask.', 'Some events you claim instantly and get a code. On others, tap "I\'m interested" and the business picks who goes.'],
+            ['Claim or ask.', 'Some events you claim instantly and get a code. On others, request an invite and the business chooses who to invite.'],
             ['Grab your tickets.', 'Use your code, get added to the guest list, or get them by email, then confirm in the app.'],
             ['Go.', 'Bring your friends (if your tickets include them) and have fun.'],
             ['Post.', 'Within 48 hours, share an honest video on TikTok or Instagram, tag the business, and add #localcurrentapp.'],
@@ -100,7 +100,7 @@ async function businessSignup(db: SupabaseClient, id: string) {
           p('Here\'s how it works:') +
           ol([
             ['Post an event.', 'Add your event link and how many free tickets each creator gets.'],
-            ['Creators claim, or you pick.', 'Let verified Chicago creators claim instantly with your promo code, or review who\'s interested and choose who goes.'],
+            ['Creators claim, or request an invite.', 'Let verified Chicago creators claim instantly with your promo code, or review invite requests and choose who to invite.'],
             ['They post.', 'Each one shares an honest video on TikTok or Instagram within 48 hours.'],
             ['Track performance in the app, automatically.', 'See how many people saw and engaged with each video.'],
           ]) +
@@ -133,7 +133,7 @@ async function currentPosted(db: SupabaseClient, id: string) {
     tag: 'Live', preview: "Here's what happens next.",
     body: hi(`${esc(ci.title)} is live${manual ? '!' : '.'}`) +
       (manual ? '' : p(`Hi ${esc(r.first)}, here's what to expect:`)) +
-      (manual ? p("We'll notify you when creators are interested.") : ul([
+      (manual ? p("We'll notify you when creators request an invite.") : ul([
         top > min ? `<strong>Today:</strong> creators with the biggest followings (${compact(top)}+) see it first.` : '<strong>Today:</strong> every eligible creator can see it.',
         ...(top > min ? [`<strong>Every 24 hours:</strong> it opens to the next group, down to your minimum (${compact(min)}).`] : []),
         '<strong>As creators claim:</strong> we\'ll email you who\'s coming.',
@@ -282,13 +282,13 @@ async function approved(db: SupabaseClient, id: string) {
         ? p(`You're on the guest list under ${b(c.profile?.full_name || c.name)}${n > 1 ? ` (+${n - 1})` : ''}. Show your ID at the door.`)
         : p(`${esc(bizName)} will email your ${ticketWord(n)} to ${b(r?.email ?? 'your email')}. Keep an eye on your inbox (and spam folder).`);
 
-  await pushTo(db, c.profile_id, "You're in! 🎟️", `${bizName} picked you for ${ci.title}. Tap "Got it!" by ${by} to keep your spot.`,
+  await pushTo(db, c.profile_id, "You're invited! 🎟️", `${bizName} invited you to ${ci.title}. Tap "Got it!" by ${by} to keep your spot.`,
     { url: `localcurrent://event/${ci.id}` });
   if (r) {
     await send(r.email, `You're going to ${ci.title}!`, layout({
-      tag: "You're in", preview: `${bizName} picked you. Confirm by ${by} to keep your spot.`,
-      body: hi(`You got picked, ${esc(r.first)}!`) +
-        p(`${b(bizName)} chose you for ${b(ci.title)}.`) +
+      tag: "You're in", preview: `${bizName} invited you. Confirm by ${by} to keep your spot.`,
+      body: hi(`You're invited, ${esc(r.first)}!`) +
+        p(`${b(bizName)} invited you to ${b(ci.title)}.`) +
         (red.going_on ? p(`You're going ${b(new Date(`${red.going_on}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}.`) : '') +
         how +
         p(`<strong>Tap "Got it!" in the app by ${esc(by)}</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
@@ -320,8 +320,8 @@ async function manualHourly(db: SupabaseClient): Promise<number> {
   for (const list of Object.values(byCircuit)) {
     const ci = list[0].circuit;
     const n = list.length;
-    await pushTo(db, ci.business.profile_id, `${n} creator${n === 1 ? '' : 's'} want${n === 1 ? 's' : ''} tickets`,
-      `New interest in ${ci.title}. Tap to review.`, { url: `localcurrent://manage/${ci.id}` });
+    await pushTo(db, ci.business.profile_id, `${n} new invite request${n === 1 ? '' : 's'}`,
+      `Creators want to go to ${ci.title}. Tap to invite or decline.`, { url: `localcurrent://manage/${ci.id}` });
     sent++;
   }
 
@@ -335,16 +335,16 @@ async function manualHourly(db: SupabaseClient): Promise<number> {
     const { count } = await db.from('redemptions').select('id', { count: 'exact', head: true })
       .eq('circuit_id', ci.id).eq('status', 'requested');
     if (!count) continue;
-    await pushTo(db, ci.business.profile_id, 'Time to pick your creators',
-      `${count} creator${count === 1 ? '' : 's'} want tickets to ${ci.title}.`, { url: `localcurrent://manage/${ci.id}` });
+    await pushTo(db, ci.business.profile_id, 'Time to send invites',
+      `${count} creator${count === 1 ? '' : 's'} requested an invite to ${ci.title}.`, { url: `localcurrent://manage/${ci.id}` });
     const r = await recipient(db, ci.business.profile_id, true);
     if (r) {
-      await send(r.email, `Pick your creators for ${ci.title}`, layout({
+      await send(r.email, `Send your invites for ${ci.title}`, layout({
         tag: 'Deadline passed', preview: `${count} creators are waiting to hear back.`,
-        body: hi(`Time to pick, ${esc(r.first)}.`) +
+        body: hi(`Time to send invites, ${esc(r.first)}.`) +
           p(`The deadline for ${b(ci.title)} has passed and ${b(count)} creator${count === 1 ? ' is' : 's are'} waiting to hear back.`) +
-          p('Approve the ones you want and choose how they get tickets: a code, the guest list, or email.') +
-          btn('Review creators', appLink(`manage/${ci.id}`)),
+          p('Invite the ones you want and choose how they get tickets: a code, the guest list, or email.') +
+          btn('Review invite requests', appLink(`manage/${ci.id}`)),
         footer: await prefsFooter("You're getting this because you have a live event.", ci.business.profile_id),
       }));
     }
@@ -407,7 +407,7 @@ async function manualHourly(db: SupabaseClient): Promise<number> {
       .eq('is_active', true).neq('id', ci.id);
     if (c) {
       await pushTo(db, c.profile_id, 'Not this time',
-        `You weren't picked for ${ci.title}.${others ? ` ${others} other event${others === 1 ? ' is' : 's are'} open now — take a look!` : ' More events are coming soon.'}`,
+        `You weren't invited to ${ci.title} this time.${others ? ` ${others} other event${others === 1 ? ' is' : 's are'} open now — take a look!` : ' More events are coming soon.'}`,
         { url: 'localcurrent://home' });
     }
     sent++;
@@ -499,7 +499,7 @@ async function sendTest(to: string) {
     body: hi("Welcome, Kari. You're in.") +
       p("Chicago businesses give creators like you free tickets to their events. All they ask for is an honest video. Here's how it works:") +
       ol([
-        ['Claim or ask.', 'Some events you claim instantly and get a code. On others, tap "I\'m interested" and the business picks who goes.'],
+        ['Claim or ask.', 'Some events you claim instantly and get a code. On others, request an invite and the business chooses who to invite.'],
         ['Grab your tickets.', 'Use your code, get added to the guest list, or get them by email, then confirm in the app.'],
         ['Go.', 'Bring your friends (if your tickets include them) and have fun.'],
         ['Post.', 'Within 48 hours, share an honest video on TikTok or Instagram, tag the business, and add #localcurrentapp.'],
