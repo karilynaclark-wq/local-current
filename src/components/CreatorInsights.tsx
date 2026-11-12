@@ -1,8 +1,8 @@
 // Creator profile stats: verified follower pills plus a "local" pill from the
 // AI summary of recent posts (creators.ai_summary, written by summarize-creator).
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Modal } from 'react-native';
 import { C, F, R } from '../theme';
 import { Icon, SocialIcon } from './Icon';
 
@@ -41,6 +41,7 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
   const share = summary?.local_share;
   const showLocal = share != null && placed >= MIN_PLACED_POSTS;
   const pct = showLocal ? Math.round(share! * 100) : 0;
+  const [showWhy, setShowWhy] = useState(false);
 
   return (
     <View style={styles.wrap}>
@@ -63,7 +64,7 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
       )}
 
       {showLocal && (
-        <View style={styles.local}>
+        <TouchableOpacity style={styles.local} disabled={!isOwn} onPress={() => setShowWhy(true)} activeOpacity={0.7}>
           <Icon name="pin" size={13} color={C.muted} />
           {share! >= LOCAL_THRESHOLD ? (
             <Text style={styles.localText}>
@@ -76,13 +77,45 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
               {100 - pct}% of recent posts are not about Chicago
             </Text>
           )}
-        </View>
+          {isOwn && <Icon name="chevron-right" size={13} color={C.muted2} />}
+        </TouchableOpacity>
       )}
+
+      <Modal visible={showWhy} transparent animationType="fade" onRequestClose={() => setShowWhy(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowWhy(false)}>
+          <View style={styles.box} onStartShouldSetResponder={() => true}>
+            <Text style={styles.boxTitle}>Why this matters</Text>
+            <Text style={styles.boxBody}>
+              This helps businesses know your content will be shown to others in Chicago.
+            </Text>
+            <Text style={styles.boxFine}>
+              We look at your recent posts and count how many are about Chicago.
+            </Text>
+            <TouchableOpacity style={styles.boxBtn} onPress={() => setShowWhy(false)} activeOpacity={0.85}>
+              <Text style={styles.boxBtnText}>Got it</Text>
+            </TouchableOpacity>
+            <Text style={styles.boxFine}>Think this stat is inaccurate?</Text>
+            <TouchableOpacity
+              onPress={() => Linking.openURL(`mailto:hello@localcurrentapp.com?subject=${encodeURIComponent('My local stat looks wrong')}&body=${encodeURIComponent(`My profile says ${pct}% of my recent posts are about Chicago, but I think that's inaccurate because: `)}`)}
+            >
+              <Text style={styles.boxLink}>Let us know</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(36,29,23,0.55)', justifyContent: 'center', padding: 28 },
+  box: { backgroundColor: C.card, borderRadius: R.lg, padding: 24, gap: 10 },
+  boxTitle: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 20, color: C.ink },
+  boxBody: { fontFamily: F.body, fontSize: 15, lineHeight: 22, color: C.inkSoft },
+  boxFine: { fontFamily: F.body, fontSize: 12.5, lineHeight: 18, color: C.muted, textAlign: 'center' },
+  boxBtn: { backgroundColor: C.accent, borderRadius: R.btn, padding: 14, alignItems: 'center', marginTop: 6, marginBottom: 4 },
+  boxBtnText: { fontFamily: F.display, fontWeight: '700', fontSize: 15, color: '#fff' },
+  boxLink: { fontFamily: F.bodySemi, fontSize: 13, color: C.accent, textAlign: 'center', textDecorationLine: 'underline', marginTop: -6 },
   wrap: { alignItems: 'center', gap: 12, alignSelf: 'stretch' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
   pill: {
