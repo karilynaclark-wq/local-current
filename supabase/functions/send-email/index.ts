@@ -280,14 +280,14 @@ async function approved(db: SupabaseClient, id: string) {
       ? p(`Use this code on ${ci.event_link ? link(ci.event_link, `${esc(bizName)}'s ticket site`) : `${esc(bizName)}'s ticket site`} to get ${ticketWord(n)}:`) + codeBox(red.code ?? '')
       : red.delivery_method === 'guest_list'
         ? p(`You're on the guest list under ${b(c.profile?.full_name || c.name)}${n > 1 ? ` (+${n - 1})` : ''}. Show your ID at the door.`)
-        : p(`${esc(bizName)} will email your ${ticketWord(n)} to ${b(r?.email ?? 'your email')}. Keep an eye on your inbox (and spam folder).`);
+        : p(`Once you tap Accept, ${esc(bizName)} will email your ${ticketWord(n)} to ${b(r?.email ?? 'your email')}. Keep an eye on your inbox (and spam folder).`);
 
   const accept = red.delivery_method === 'code' ? 'Use your code, then tap "I got my tickets"' : 'Tap "Accept invite"';
   await pushTo(db, c.profile_id, "You're invited! 🎟️", `${bizName} invited you to ${ci.title}. ${accept} by ${by} to keep your spot.`,
     { url: `localcurrent://event/${ci.id}` });
   if (r) {
-    await send(r.email, `You're going to ${ci.title}!`, layout({
-      tag: "You're in", preview: `${bizName} invited you. Confirm by ${by} to keep your spot.`,
+    await send(r.email, `You're invited to ${ci.title}!`, layout({
+      tag: "Invited", preview: `${bizName} invited you. Confirm by ${by} to keep your spot.`,
       body: hi(`You're invited, ${esc(r.first)}!`) +
         p(`${b(bizName)} invited you to ${b(ci.title)}.`) +
         (red.going_on ? p(`You're going ${b(new Date(`${red.going_on}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}.`) : '') +

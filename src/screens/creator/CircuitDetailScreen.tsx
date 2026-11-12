@@ -703,8 +703,8 @@ export default function CircuitDetailScreen() {
               </Text>
             ) : (
               <Text style={styles.stepText}>
-                {circuit.business?.business_name ?? 'The business'} will email your {ticketsLabel.replace('free ', '')} to{' '}
-                <Text style={{ fontFamily: F.bodySemi }}>{myEmail || 'your email'}</Text>. Check your spam folder too.
+                {confirmedAt ? '' : 'Once you tap Accept, '}{circuit.business?.business_name ?? 'The business'} will email your {ticketsLabel.replace('free ', '')} to{' '}
+                <Text style={{ fontFamily: F.bodySemi }}>{myEmail || 'your email'}</Text>. Keep an eye on your inbox (and spam folder).
               </Text>
             )}
             {!confirmedAt ? (
@@ -793,6 +793,8 @@ export default function CircuitDetailScreen() {
                   ? `You're on the guest list under ${creatorName || 'your name'}${ticketCount > 1 ? ` (+${ticketCount - 1})` : ''}${goingStr ? ` for ${goingStr}` : ''}. Show your ID at the door.`
                   : deliveryMethod === 'email' && ticketsSentAt
                   ? `${circuit.business?.business_name ?? 'The business'} emailed your tickets to ${myEmail || 'your email'}${goingStr ? ` for ${goingStr}` : ''}. Check your inbox (and spam folder).`
+                  : deliveryMethod === 'email' && !confirmedAt
+                  ? `Once you tap Accept, ${circuit.business?.business_name ?? 'The business'} will email your tickets to ${myEmail || 'your email'}. Keep an eye on your inbox (and spam folder).`
                   : deliveryMethod === 'email'
                   ? `${circuit.business?.business_name ?? 'The business'} will email your tickets to ${myEmail || 'your email'}${goingStr ? ` for ${goingStr}` : ''}. Check your spam folder too.`
                   : "You redeemed tickets on the event's ticketing site. For ticket and event details, check the email you used to redeem them."}
