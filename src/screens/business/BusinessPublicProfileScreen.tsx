@@ -183,7 +183,7 @@ export default function BusinessPublicProfileScreen() {
               <View style={styles.emptyBox}>
                 <Icon name="star" size={32} color={C.muted2} />
                 <Text style={styles.emptyTitle}>No reviews yet</Text>
-                <Text style={styles.emptySubtitle}>Creator reviews will appear here</Text>
+                <Text style={styles.emptySubtitle}>Local Current is built on mutual trust. Creators review businesses after their content goes live, and businesses review them too.</Text>
               </View>
             ) : (
               reviews.map((r: any, i: number) => (
