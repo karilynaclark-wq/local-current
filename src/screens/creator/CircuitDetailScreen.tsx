@@ -164,6 +164,7 @@ export default function CircuitDetailScreen() {
   const [otherEvents, setOtherEvents] = useState<Circuit[]>([]);
   const [goingOn, setGoingOn] = useState<string | null>(null);
   const [respondedAt, setRespondedAt] = useState<string | null>(null);
+  const [ticketsSentAt, setTicketsSentAt] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(false);
   const [pickDates, setPickDates] = useState<Date[]>([]);
   const [prefNote, setPrefNote] = useState('');
@@ -199,7 +200,7 @@ export default function CircuitDetailScreen() {
         .then(({ data: creator }) => {
           if (!creator) return;
           supabase.from('redemptions')
-            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, delivery_method, confirmed_at, responded_at, going_on, creator_rating, creator_review, creator_review_anonymous')
+            .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, delivery_method, confirmed_at, responded_at, going_on, tickets_sent_at, creator_rating, creator_review, creator_review_anonymous')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
@@ -220,6 +221,7 @@ export default function CircuitDetailScreen() {
                 setConfirmedAt(existing.confirmed_at ?? null);
                 setGoingOn(existing.going_on ?? null);
                 setRespondedAt(existing.responded_at ?? null);
+                setTicketsSentAt(existing.tickets_sent_at ?? null);
                 supabase.from('posts').select('id', { count: 'exact', head: true }).eq('redemption_id', existing.id)
                   .then(({ count }) => setHasPost((count ?? 0) > 0));
               }
@@ -620,7 +622,7 @@ export default function CircuitDetailScreen() {
             <Text style={styles.stateTitle}>{isManual ? 'Invite requested' : 'Request sent 🙌'}</Text>
             {isManual ? (
               <Text style={styles.stepText}>
-                {circuit.business?.business_name ?? 'The business'} sends invites
+                {circuit.business?.business_name ?? 'The business'} will send invites
                 {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
                 We'll let you know if you're invited, and you'll have up to 72 hours to accept.
               </Text>
@@ -789,8 +791,10 @@ export default function CircuitDetailScreen() {
               <Text style={[styles.stepText, { flex: 1 }]}>
                 {deliveryMethod === 'guest_list'
                   ? `You're on the guest list under ${creatorName || 'your name'}${ticketCount > 1 ? ` (+${ticketCount - 1})` : ''}${goingStr ? ` for ${goingStr}` : ''}. Show your ID at the door.`
+                  : deliveryMethod === 'email' && ticketsSentAt
+                  ? `${circuit.business?.business_name ?? 'The business'} emailed your tickets to ${myEmail || 'your email'}${goingStr ? ` for ${goingStr}` : ''}. Check your inbox (and spam folder).`
                   : deliveryMethod === 'email'
-                  ? `${circuit.business?.business_name ?? 'The business'} is emailing your tickets to ${myEmail || 'your email'}${goingStr ? ` for ${goingStr}` : ''}. Check your spam folder too.`
+                  ? `${circuit.business?.business_name ?? 'The business'} will email your tickets to ${myEmail || 'your email'}${goingStr ? ` for ${goingStr}` : ''}. Check your spam folder too.`
                   : "You redeemed tickets on the event's ticketing site. For ticket and event details, check the email you used to redeem them."}
               </Text>
             </View>
@@ -1066,7 +1070,7 @@ export default function CircuitDetailScreen() {
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
                 {isManual
-                  ? <>{circuit.business?.business_name ?? 'The business'} sends invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're picked, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to accept</Text>.</>
+                  ? <>{circuit.business?.business_name ?? 'The business'} will send invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're invited, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to accept</Text>.</>
                   : <>You'll get a <Text style={styles.claimBold}>code for {ticketsLabel}</Text> to use online right away.</>}
               </Text>
             </View>

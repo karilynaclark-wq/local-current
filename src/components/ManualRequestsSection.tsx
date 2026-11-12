@@ -11,6 +11,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/analytics';
+import { notifyUser } from '../lib/notifications';
 import { Circuit, FILLED_STATUSES } from '../types';
 import { C, F, R, S } from '../theme';
 
@@ -114,10 +115,22 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
     if (method === 'guest_list') {
       Alert.alert('Invited', `Add ${name}${tickets > 1 ? ` +${tickets - 1}` : ''} to your guest list${going ? ` for ${fmtDay(going)}` : ''}.${email ? `\n\nTheir email: ${email}` : ''}\n\nThey have up to 72 hours to accept.`);
     } else if (method === 'email') {
-      Alert.alert('Invited', `Email ${tickets} ticket${tickets === 1 ? '' : 's'} to ${email ?? 'them'}.\n\nThey have up to 72 hours to accept.`);
+      Alert.alert('Invited', `${who} has been invited! Once they accept, you'll be prompted to email them their tickets.`);
     } else {
       Alert.alert('Invited', `${who} has the code. They have up to 72 hours to accept.`);
     }
+  }
+
+  async function markSent(r: any) {
+    const { error } = await supabase.rpc('mark_tickets_sent', { p_redemption_id: r.id });
+    if (error) { Alert.alert('Error', error.message); return; }
+    trackEvent('tickets_sent', { circuit_id: circuit.id });
+    if (r.creator?.profile_id) {
+      notifyUser(r.creator.profile_id, 'Your tickets are on the way 🎟️',
+        `${circuit.business?.business_name ?? 'The business'} emailed your tickets to ${circuit.title}. Check your inbox.`,
+        { url: `localcurrent://event/${circuit.id}` });
+    }
+    onChanged();
   }
 
   function pass(r: any) {
@@ -195,17 +208,38 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
                       {r.delivery_method === 'guest_list' ? ` · ${r.creator?.profile?.full_name ?? ''}${tickets > 1 ? ` +${tickets - 1}` : ''}` : ''}
                     </Text>
                     {recurring && r.going_on ? <Text style={st.goingText}>Going {fmtDay(r.going_on)}</Text> : null}
-                    {!!email && (
+                    {!!email && r.delivery_method !== 'email' && (
                       <Text style={st.email} onPress={() => Linking.openURL(`mailto:${email}`)}
                         onLongPress={() => { Clipboard.setStringAsync(email); Alert.alert('Copied', email); }}>{email}</Text>
                     )}
                   </View>
-                  <View style={[st.pill, r.confirmed_at ? st.pillOk : st.pillWait]}>
+                  {(() => {
+                    const accepted = !!r.confirmed_at || r.status !== 'approved';
+                    const needsTickets = r.delivery_method === 'email' && accepted && !r.tickets_sent_at;
+                    const label = !accepted ? 'Waiting' : needsTickets ? 'Send tickets' : r.delivery_method === 'email' ? 'Tickets sent' : 'Accepted';
+                    return (
+                  <View style={[st.pill, accepted && !needsTickets ? st.pillOk : st.pillWait]}>
                     <Text style={[st.pillText, r.confirmed_at ? { color: C.ok } : { color: '#92400E' }]}>
-                      {r.confirmed_at || r.status !== 'approved' ? 'Accepted' : 'Waiting'}
+                      {label}
                     </Text>
                   </View>
+                    );
+                  })()}
                 </View>
+                {r.delivery_method === 'email' && (r.confirmed_at || r.status !== 'approved') && !r.tickets_sent_at && (
+                  <View style={st.sendBox}>
+                    <Text style={st.sendText}>
+                      {handleOf(r.creator)} accepted! Email {tickets} ticket{tickets === 1 ? '' : 's'}{recurring && r.going_on ? ` for ${fmtDay(r.going_on)}` : ''} to:
+                    </Text>
+                    {!!email && (
+                      <Text style={st.sendEmail} onPress={() => Linking.openURL(`mailto:${email}?subject=${encodeURIComponent(`Your tickets to ${circuit.title}`)}`)}
+                        onLongPress={() => { Clipboard.setStringAsync(email); Alert.alert('Copied', email); }}>{email}</Text>
+                    )}
+                    <TouchableOpacity style={st.sentBtn} onPress={() => markSent(r)} activeOpacity={0.85}>
+                      <Text style={st.sentBtnText}>I've sent the tickets</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -291,6 +325,11 @@ const st = StyleSheet.create({
   dateChip: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.paper },
   dateChipOn: { backgroundColor: C.accent, borderColor: C.accent },
   dateChipText: { fontFamily: F.bodySemi, fontSize: 13.5, color: C.ink },
+  sendBox: { backgroundColor: '#FEF3C7', borderRadius: R.sm, padding: 12, gap: 6 },
+  sendText: { fontFamily: F.body, fontSize: 13.5, color: '#78350F', lineHeight: 19 },
+  sendEmail: { fontFamily: F.bodySemi, fontSize: 15, color: C.accent },
+  sentBtn: { backgroundColor: C.accent, borderRadius: R.btn, paddingVertical: 11, alignItems: 'center', marginTop: 4 },
+  sentBtnText: { fontFamily: F.bodySemi, fontSize: 14, color: '#fff' },
   overlay: { flex: 1, backgroundColor: 'rgba(36,29,23,0.55)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   sheetTitle: { fontFamily: F.displayXBold, fontWeight: '800', fontSize: 20, color: C.ink },
