@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeAreaView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ActionSheetIOS,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Pressable,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
@@ -48,6 +48,7 @@ export default function MessageThreadScreen() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [blocked, setBlocked] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   const isBusiness = !!thread && me === thread.business_profile;
@@ -138,17 +139,10 @@ export default function MessageThreadScreen() {
     ]);
   }
 
-  function menu() {
-    const opts = [blocked ? `Unblock ${otherName}` : `Block ${otherName}`, 'Report a problem', 'Cancel'];
-    const handle = (i: number) => {
-      if (i === 0) toggleBlock();
-      if (i === 1) {
-        supabase.from('problem_reports').insert({ circuit_id: thread?.circuit_id ?? null, report_type: 'message_thread', details: `Thread ${redemptionId} with ${otherName}` })
-          .then(({ error }) => Alert.alert(error ? "Couldn't send report" : 'Thanks for letting us know', error ? error.message : "We'll take a look."));
-      }
-    };
-    if (Platform.OS === 'ios') ActionSheetIOS.showActionSheetWithOptions({ options: opts, cancelButtonIndex: 2, destructiveButtonIndex: 0 }, handle);
-    else Alert.alert(otherName, undefined, [{ text: opts[0], onPress: () => handle(0) }, { text: opts[1], onPress: () => handle(1) }, { text: 'Cancel', style: 'cancel' }]);
+  function reportThread() {
+    setMenuOpen(false);
+    supabase.from('problem_reports').insert({ circuit_id: thread?.circuit_id ?? null, report_type: 'message_thread', details: `Thread ${redemptionId} with ${otherName}` })
+      .then(({ error }) => Alert.alert(error ? "Couldn't send report" : 'Thanks for letting us know', error ? error.message : "We'll take a look."));
   }
 
   const closed = !!thread && !thread.is_open;
@@ -164,7 +158,7 @@ export default function MessageThreadScreen() {
           <Text style={st.title} numberOfLines={1}>{otherName || 'Messages'}</Text>
           {!!thread && <Text style={st.sub} numberOfLines={1}>{thread.circuit_title}</Text>}
         </View>
-        <TouchableOpacity onPress={menu} hitSlop={10} disabled={!thread}>
+        <TouchableOpacity onPress={() => setMenuOpen(true)} hitSlop={10} disabled={!thread}>
           <Icon name="more" size={22} color={C.ink} />
         </TouchableOpacity>
       </View>
@@ -233,6 +227,21 @@ export default function MessageThreadScreen() {
           )}
         </KeyboardAvoidingView>
       )}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={st.backdrop} onPress={() => setMenuOpen(false)}>
+          <Pressable style={st.sheet}>
+            <TouchableOpacity style={st.sheetRow} onPress={() => { setMenuOpen(false); setTimeout(toggleBlock, 250); }}>
+              <Text style={[st.sheetText, !blocked && { color: '#C0392B' }]}>{blocked ? `Unblock ${otherName}` : `Block ${otherName}`}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={st.sheetRow} onPress={reportThread}>
+              <Text style={st.sheetText}>Report a problem</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[st.sheetRow, { borderBottomWidth: 0 }]} onPress={() => setMenuOpen(false)}>
+              <Text style={[st.sheetText, { color: C.muted }]}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -259,6 +268,10 @@ const st = StyleSheet.create({
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.paper },
   input: { flex: 1, fontFamily: F.body, fontSize: 15, color: C.ink, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line2, borderRadius: 20, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, maxHeight: 120 },
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30, paddingTop: 6 },
+  sheetRow: { paddingVertical: 17, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line },
+  sheetText: { fontFamily: F.bodySemi, fontSize: 16, color: C.ink },
   closed: { padding: 16, borderTopWidth: 1, borderTopColor: C.line },
   closedText: { fontFamily: F.body, fontSize: 13.5, color: C.muted, textAlign: 'center' },
 } as any);
