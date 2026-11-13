@@ -92,6 +92,9 @@ export default function CreateCircuitScreen() {
   const [scheduleType, setScheduleType] = useState<'one_time' | 'recurring' | null>(null);
   const [eventDay, setEventDay] = useState<Date | null>(null);
   const [eventTime, setEventTime] = useState('');
+  const [ampm, setAmpm] = useState<'AM' | 'PM' | null>(null);
+  /** "8" / "8:30" + AM/PM → full time string, or '' if incomplete. */
+  const fullTime = /^(1[0-2]|[1-9])(:[0-5]\d)?$/.test(eventTime.trim()) && ampm ? `${eventTime.trim()} ${ampm}` : '';
   const [anyDate, setAnyDate] = useState<boolean | null>(null);
   const [scheduleNote, setScheduleNote] = useState('');
   const [ticketsPer, setTicketsPer] = useState<number>(2); // creator + guests
@@ -126,7 +129,8 @@ export default function CreateCircuitScreen() {
       if (!scheduleType) return 'Tell creators when the event is.';
       if (scheduleType === 'one_time') {
         if (!eventDay) return 'Pick the event date.';
-        if (!parseTime(eventTime)) return 'Add the start time, like 8:00 PM.';
+        if (!/^(1[0-2]|[1-9])(:[0-5]\d)?$/.test(eventTime.trim())) return 'Add the start time, like 8:00.';
+        if (!ampm) return 'Pick AM or PM for the start time.';
       }
       if (approvalMode === 'manual') {
         if (scheduleType === 'recurring') {
@@ -176,8 +180,8 @@ export default function CreateCircuitScreen() {
         request_deadline: approvalMode === 'manual' && deadline ? endOfDay(deadline).toISOString() : null,
         schedule_type: scheduleType,
         schedule_note: approvalMode === 'manual' && scheduleType === 'recurring' && anyDate === false ? scheduleNote.trim() : null,
-        event_at: scheduleType === 'one_time' && eventDay && parseTime(eventTime)
-          ? (() => { const d = new Date(eventDay); const [h, m] = parseTime(eventTime)!; d.setHours(h, m, 0, 0); return d.toISOString(); })()
+        event_at: scheduleType === 'one_time' && eventDay && parseTime(fullTime)
+          ? (() => { const d = new Date(eventDay); const [h, m] = parseTime(fullTime)!; d.setHours(h, m, 0, 0); return d.toISOString(); })()
           : null,
         eligibility_min_followers: approvalMode === 'manual' ? '' : [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: approvalMode === 'manual' || selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],
@@ -333,8 +337,18 @@ export default function CreateCircuitScreen() {
                     <View style={{ marginTop: 14 }}>
                       <DatePicker value={eventDay} onChange={setEventDay} minDate={new Date(Date.now() + 86_400_000)} />
                       <Text style={[styles.label, { marginTop: 14 }]}>Start time</Text>
-                      <TextInput style={styles.input} value={eventTime} onChangeText={setEventTime}
-                        placeholder="e.g. 8:00 PM" placeholderTextColor={C.muted2} autoCapitalize="none" autoCorrect={false} />
+                      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                        <TextInput style={[styles.input, { flex: 1 }]} value={eventTime}
+                          onChangeText={t => setEventTime(t.replace(/[^\d:]/g, '').slice(0, 5))}
+                          placeholder="8:00" placeholderTextColor={C.muted2} keyboardType="numbers-and-punctuation" maxLength={5} />
+                        {(['AM', 'PM'] as const).map(v => (
+                          <TouchableOpacity key={v} onPress={() => setAmpm(v)}
+                            style={{ paddingVertical: 14, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1.5,
+                              borderColor: ampm === v ? C.accent : C.line2, backgroundColor: ampm === v ? C.accent : C.card }}>
+                            <Text style={{ fontFamily: F.bodySemi, fontSize: 15, color: ampm === v ? '#fff' : C.ink }}>{v}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                     </View>
                   )}
 
