@@ -399,7 +399,7 @@ export default function AdminDashboardScreen() {
       negative_experience: 'Negative experience',
       other: 'Other',
     };
-    const date = new Date(item.problem_reported_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const date = new Date(item.problem_reported_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' });
     return (
       <View key={item.id} style={[styles.card, styles.cardFlagged]}>
         <View style={styles.reportHeader}>
@@ -481,7 +481,7 @@ export default function AdminDashboardScreen() {
                 const handle = r?.creator?.instagram_handle || r?.creator?.tiktok_handle || '';
                 const bizName = r?.circuit?.business?.business_name ?? '';
                 const circuitTitle = r?.circuit?.title ?? '';
-                const postedDate = post.submitted_at ? new Date(post.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+                const postedDate = post.submitted_at ? new Date(post.submitted_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' }) : '';
                 const hasStats = post.views != null || post.likes != null || post.comments != null;
                 return (
                   <View key={post.id} style={[styles.card, !hasStats && styles.cardFlagged]}>

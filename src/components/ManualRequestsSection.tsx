@@ -26,7 +26,7 @@ const METHOD_LABEL: Record<Method, string> = { code: 'Promo code', guest_list: '
 
 /** '2026-11-22' → 'Sat, Nov 22' (no timezone shift). */
 const fmtDay = (ymd: string) =>
-  new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' });
 
 const fmtCount = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
@@ -161,7 +161,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
       {deadline && (
         <Text style={st.sub}>
           {deadline > new Date() ? 'Creators can request until ' : 'Requests closed '}
-          {deadline.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}. You can invite anytime.
+          {deadline.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' })}. You can invite anytime.
         </Text>
       )}
 

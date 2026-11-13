@@ -233,7 +233,7 @@ export default function BusinessProfileScreen() {
                       </TouchableOpacity>
                     ) : <Text style={styles.reviewCreator}>{r.creator_name}</Text>}
                     <Text style={styles.reviewMeta}>
-                      {r.circuit_title ? `${r.circuit_title} · ` : ''}{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      {r.circuit_title ? `${r.circuit_title} · ` : ''}{new Date(r.created_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', year: 'numeric' })}
                     </Text>
                   </View>
                 </View>

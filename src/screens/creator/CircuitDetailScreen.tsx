@@ -10,6 +10,7 @@ import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { Circuit } from '../../types';
 import { C, F, R, S } from '../../theme';
+import { chicagoInstant, chicagoDaysUntil, chicagoParts } from '../../lib/time';
 import MessageLink from '../../components/MessageLink';
 import { Icon } from '../../components/Icon';
 import DatePicker from '../../components/DatePicker';
@@ -406,7 +407,7 @@ export default function CircuitDetailScreen() {
       // The 48h posting window (app + server reminders) runs from checked_in_at,
       // so anchor it to the day they're going rather than when they bought tickets.
       const now = visit.toISOString();
-      const bookedNote = visit.toLocaleDateString('en-US');
+      const bookedNote = visit.toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
       // Mark as booked. Reuse checked_in_at/status so the post-submission step
       // unlocks. (booked_note stores the day; attempted separately so a missing
       // column doesn't block the core transition.)
@@ -468,7 +469,7 @@ export default function CircuitDetailScreen() {
     .join(' or ');
   const eventAt = circuit.event_at ? new Date(circuit.event_at) : null;
   // Recurring "You pick": the date the business confirmed (9 PM local anchors the post window)
-  const goingDate = goingOn ? new Date(`${goingOn}T21:00:00`) : null;
+  const goingDate = goingOn ? (() => { const [y, m, d] = goingOn.split('-').map(Number); return chicagoInstant(y, m, d, 21); })() : null;
   // Same rule as the server: 72h, or 6h before the event if sooner (min 3h after approval).
   const confirmBy = (() => {
     if (!respondedAt) return null;
@@ -479,15 +480,15 @@ export default function CircuitDetailScreen() {
     return new Date(t);
   })();
   const confirmByStr = confirmBy
-    ? confirmBy.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    ? confirmBy.toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : '72 hours';
-  const goingStr = goingDate ? goingDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : null;
+  const goingStr = goingDate ? goingDate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'short', day: 'numeric' }) : null;
   const eventDateStr = eventAt
-    ? eventAt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
-      ' · ' + eventAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    ? eventAt.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' }) +
+      ' · ' + eventAt.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })
     : null;
   const daysToEvent = eventAt
-    ? Math.round((new Date(eventAt).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000)
+    ? chicagoDaysUntil(eventAt)
     : null;
   // "West Loop" from an address like "123 Main St, West Loop, Chicago"
   const addrParts = (circuit.business?.address ?? '').split(',').map(x => x.trim()).filter(Boolean);
@@ -500,8 +501,8 @@ export default function CircuitDetailScreen() {
   const expiresSoon = !isExpired && daysUntilExpiry !== null && daysUntilExpiry <= 7;
 
   const postDeadlineStr = postDeadline
-    ? new Date(postDeadline).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) +
-      ' at ' + new Date(postDeadline).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    ? new Date(postDeadline).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'long', day: 'numeric' }) +
+      ' at ' + new Date(postDeadline).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true })
     : null;
 
   const minRedemption = redemptionId ? { id: redemptionId, circuit } : null;
@@ -559,13 +560,13 @@ export default function CircuitDetailScreen() {
         {eventAt && (
           <View style={styles.whenRow}>
             <View style={styles.calTile}>
-              <Text style={styles.calMonth}>{eventAt.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}</Text>
-              <Text style={styles.calDay}>{eventAt.getDate()}</Text>
+              <Text style={styles.calMonth}>{eventAt.toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short' }).toUpperCase()}</Text>
+              <Text style={styles.calDay}>{chicagoParts(eventAt).d}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.whenDay}>{eventAt.toLocaleDateString('en-US', { weekday: 'long' })}</Text>
+              <Text style={styles.whenDay}>{eventAt.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long' })}</Text>
               <Text style={styles.whenTime}>
-                {eventAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {eventAt.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })}
                 {daysToEvent != null && daysToEvent >= 0 ? `  ·  ${daysToEvent === 0 ? 'Today' : daysToEvent === 1 ? 'Tomorrow' : `in ${daysToEvent} days`}` : ''}
               </Text>
             </View>
@@ -629,7 +630,7 @@ export default function CircuitDetailScreen() {
                   postOnLabel ? `Post on ${postOnLabel}` : null,
                   circuit.max_redemptions != null ? `Only ${circuit.max_redemptions} creators get in` : null,
                   isManual && isRecurring ? 'Multiple dates' : null,
-                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} will send invites by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
+                  isManual && circuit.request_deadline ? `${circuit.business?.business_name ?? 'The business'} will send invites by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' })}` : null,
                 ].filter(Boolean).map((x, i) => (i === 0 && eligStatus === null ? x : `  ·  ${x}`)).join('')}
               </Text>
             </TouchableOpacity>
@@ -643,7 +644,7 @@ export default function CircuitDetailScreen() {
             {isManual ? (
               <Text style={styles.stepText}>
                 {circuit.business?.business_name ?? 'The business'} will send invites
-                {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
+                {circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'short', day: 'numeric' })}` : ''}.
                 We'll let you know if you're invited, and you'll have up to 72 hours to accept.
               </Text>
             ) : null}
@@ -1096,7 +1097,7 @@ export default function CircuitDetailScreen() {
               <View style={styles.claimRowIcon}><Icon name="switch" size={16} color={C.accent} /></View>
               <Text style={styles.claimRowText}>
                 {isManual
-                  ? <>{circuit.business?.business_name ?? 'The business'} will send invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}. If you're invited, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to accept</Text>.</>
+                  ? <>{circuit.business?.business_name ?? 'The business'} will send invites{circuit.request_deadline ? ` by ${new Date(circuit.request_deadline).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' })}` : ''}. If you're invited, you'll get <Text style={styles.claimBold}>{ticketsLabel}</Text> and have <Text style={styles.claimBold}>up to 72 hours to accept</Text>.</>
                   : <>You'll get a <Text style={styles.claimBold}>code for {ticketsLabel}</Text> to use online right away.</>}
               </Text>
             </View>

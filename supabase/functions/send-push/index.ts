@@ -42,8 +42,10 @@ serve(async (req) => {
         if (!ok) continue;
         const url = typeof data?.url === 'string' ? data.url : null;
         const kind = typeof data?.kind === 'string' ? data.kind : null;
-        // Messages: several in a row become one alert (update the unread one, no extra push).
-        if (kind === 'message' && url) {
+        // Creator messages: several in a row become one alert (update the unread one,
+        // no extra push). Business messages always push: they may be urgent (cancelled, time change).
+        const { data: senderProf } = await db.from('profiles').select('role').eq('id', sender).single();
+        if (kind === 'message' && url && senderProf?.role !== 'business') {
           const since = new Date(Date.now() - 10 * 60_000).toISOString();
           const { data: recent } = await db.from('notifications').select('id')
             .eq('profile_id', id).eq('url', url).is('read_at', null).gte('created_at', since).limit(1).maybeSingle();

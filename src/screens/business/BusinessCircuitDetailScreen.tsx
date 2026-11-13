@@ -52,7 +52,7 @@ function ExtendModal({ visible, currentExpiry, onClose, onSaved }: ExtendModalPr
   }
 
   const currentFormatted = currentExpiry
-    ? new Date(currentExpiry + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    ? new Date(currentExpiry + 'T12:00:00').toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric', year: 'numeric' })
     : 'None';
 
   return (
@@ -377,8 +377,8 @@ export default function BusinessCircuitDetailScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Event date</Text>
                   <Text style={styles.detailValue}>
-                    {new Date(circuit.event_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                    {' · '}{new Date(circuit.event_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    {new Date(circuit.event_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' })}
+                    {' · '}{new Date(circuit.event_at).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })}
                   </Text>
                 </View>
               )}

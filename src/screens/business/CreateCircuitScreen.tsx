@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { trackEvent } from '../../lib/analytics';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import { chicagoOnDay } from '../../lib/time';
 import DatePicker from '../../components/DatePicker';
 import { MIN_FOLLOWER_OPTIONS, minFollowersLabel } from '../../lib/eligibility';
 
@@ -32,7 +33,7 @@ function parseTime(t: string): [number, number] | null {
 
 /** 11:59 PM on the given day. */
 function endOfDay(d: Date): Date {
-  const x = new Date(d); x.setHours(23, 59, 0, 0); return x;
+  return chicagoOnDay(d, 23, 59);
 }
 
 /** One code per line (commas also work); blanks and duplicates dropped. */
@@ -181,7 +182,7 @@ export default function CreateCircuitScreen() {
         schedule_type: scheduleType,
         schedule_note: approvalMode === 'manual' && scheduleType === 'recurring' && anyDate === false ? scheduleNote.trim() : null,
         event_at: scheduleType === 'one_time' && eventDay && parseTime(fullTime)
-          ? (() => { const d = new Date(eventDay); const [h, m] = parseTime(fullTime)!; d.setHours(h, m, 0, 0); return d.toISOString(); })()
+          ? (() => { const [h, m] = parseTime(fullTime)!; return chicagoOnDay(eventDay, h, m).toISOString(); })()
           : null,
         eligibility_min_followers: approvalMode === 'manual' ? '' : [...new Set(selectedPlatforms.flatMap(p => platformFollowers[p]))].join(','),
         required_platform: approvalMode === 'manual' || selectedPlatforms.length === 2 ? 'either' : selectedPlatforms[0],

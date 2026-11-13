@@ -34,8 +34,8 @@ function timeLabel(iso: string) {
   const today = new Date();
   const sameDay = d.toDateString() === today.toDateString();
   return sameDay
-    ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    ? d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 export default function MessageThreadScreen() {
@@ -146,7 +146,7 @@ export default function MessageThreadScreen() {
   }
 
   const closed = !!thread && !thread.is_open;
-  const closesStr = thread ? new Date(thread.closes_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  const closesStr = thread ? new Date(thread.closes_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' }) : '';
 
   return (
     <SafeAreaView style={st.container}>

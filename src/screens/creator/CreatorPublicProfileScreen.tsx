@@ -282,7 +282,7 @@ export default function CreatorPublicProfileScreen() {
             ) : (
               <View style={{ gap: 12 }}>
                 {reviews.map(rev => {
-                  const reviewDate = new Date(rev.business_rated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  const reviewDate = new Date(rev.business_rated_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' });
                   return (
                     <View key={rev.id} style={styles.reviewCard}>
                       <View style={styles.reviewHeader}>

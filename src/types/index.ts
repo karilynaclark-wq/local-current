@@ -73,8 +73,8 @@ export interface Circuit {
 export function eventDateLabel(c?: { event_at?: string | null } | null): string | null {
   if (!c?.event_at) return null;
   const d = new Date(c.event_at);
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
-    ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
 }
 
 export type RedemptionStatus =
