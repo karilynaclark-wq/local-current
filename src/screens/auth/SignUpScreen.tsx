@@ -98,9 +98,9 @@ export default function SignUpScreen() {
               </View>
               <Text style={styles.checkLabel}>
                 I have read and agree to the Local Current{' '}
-                <Text style={styles.link} onPress={() => Linking.openURL('https://local-collab-flow.lovable.app/terms')}>Terms of Use</Text>
+                <Text style={styles.link} onPress={() => Linking.openURL('https://localcurrentapp.com/terms')}>Terms of Use</Text>
                 {' '}and{' '}
-                <Text style={styles.link} onPress={() => Linking.openURL('https://local-collab-flow.lovable.app/privacy')}>Privacy Policy</Text>
+                <Text style={styles.link} onPress={() => Linking.openURL('https://localcurrentapp.com/privacy')}>Privacy Policy</Text>
               </Text>
             </TouchableOpacity>
 

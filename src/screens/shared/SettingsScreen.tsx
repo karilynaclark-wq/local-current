@@ -95,8 +95,8 @@ export default function SettingsScreen() {
     },
     {
       items: [
-        { iconName: 'clipboard', label: 'Privacy Policy', chevron: true, onPress: () => Linking.openURL('https://local-collab-flow.lovable.app/privacy') },
-        { iconName: 'clipboard', label: 'Terms of Use', chevron: true, onPress: () => Linking.openURL('https://local-collab-flow.lovable.app/terms') },
+        { iconName: 'clipboard', label: 'Privacy Policy', chevron: true, onPress: () => Linking.openURL('https://localcurrentapp.com/privacy') },
+        { iconName: 'clipboard', label: 'Terms of Use', chevron: true, onPress: () => Linking.openURL('https://localcurrentapp.com/terms') },
       ],
     },
     {
