@@ -9,6 +9,7 @@ import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { Circuit } from '../../types';
 import { C, F, R, S } from '../../theme';
+import MessageLink from '../../components/MessageLink';
 import { Icon } from '../../components/Icon';
 import DatePicker from '../../components/DatePicker';
 import { RatingModal, Stars } from '../../components/Reviews';
@@ -893,6 +894,10 @@ export default function CircuitDetailScreen() {
           </View>
         ) : null}
 
+
+        {redemptionId && hasClaimed && ['approved', 'claimed', 'checked_in', 'completed'].includes(redemptionStatus ?? '') && (
+          <MessageLink redemptionId={redemptionId} label={`Message ${circuit.business?.business_name ?? 'the business'}`} />
+        )}
 
         {(isRequested || isApproved) && (
           <>

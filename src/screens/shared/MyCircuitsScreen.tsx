@@ -9,6 +9,7 @@ import { countFilled, eventDateLabel, requestChipFor } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon, Mark } from '../../components/Icon';
 import { Logo } from '../../components/Logo';
+import NotificationBell from '../../components/NotificationBell';
 import { StatusChip } from '../../components/UI';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
@@ -275,6 +276,7 @@ export default function MyCircuitsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={[styles.header, role === 'business' && { borderBottomWidth: 0 }]}>
         {role === 'business' ? <Logo size="sm" /> : <Text style={styles.screenTitle}>My claims</Text>}
+        <NotificationBell />
       </View>
 
       <FlatList

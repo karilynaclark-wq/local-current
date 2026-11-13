@@ -14,6 +14,7 @@ import PostStats, { hasPostStats } from '../../components/PostStats';
 import { Icon, SocialIcon } from '../../components/Icon';
 import { RatingModal } from '../../components/Reviews';
 import ProblemReportModal from '../../components/ProblemReportModal';
+import MessageLink from '../../components/MessageLink';
 import ManualRequestsSection from '../../components/ManualRequestsSection';
 
 // ─── Extend expiry modal ──────────────────────────────────────────────────────
@@ -279,7 +280,7 @@ export default function BusinessCircuitDetailScreen() {
 
   const claimedCreators = redemptions
     .filter((r: any) => FILLED_STATUSES.includes(r.status) && r.creator)
-    .map((r: any) => r.creator);
+    .map((r: any) => ({ ...r.creator, _rid: r.id }));
 
   const isExpired = circuit.expires_at ? new Date(circuit.expires_at) < new Date() : false;
 
@@ -494,7 +495,7 @@ export default function BusinessCircuitDetailScreen() {
                     const name = c.profile?.full_name ?? 'Creator';
                     return (
                       <TouchableOpacity
-                        key={c.id}
+                        key={c._rid ?? c.id}
                         style={styles.creatorChip}
                         onPress={() => navigation.navigate('CreatorPublicProfile', { creatorId: c.id })}
                         activeOpacity={0.8}
@@ -509,6 +510,7 @@ export default function BusinessCircuitDetailScreen() {
                         <Text style={styles.creatorHandle} numberOfLines={1}>
                           {handle ? `@${handle.replace('@', '')}` : name}
                         </Text>
+                        {c._rid ? <View style={{ marginTop: 6 }}><MessageLink redemptionId={c._rid} variant="icon" /></View> : null}
                       </TouchableOpacity>
                     );
                   })}

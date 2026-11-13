@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { eventDateLabel, requestChipFor } from '../../types';
 import { C, F, R, S } from '../../theme';
 import { Icon } from '../../components/Icon';
+import NotificationBell from '../../components/NotificationBell';
 import { StatusChip } from '../../components/UI';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
@@ -80,8 +81,9 @@ export default function MyRedemptionsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
         <Text style={styles.headerTitle}>My Currents</Text>
+        <NotificationBell />
       </View>
       <FlatList
         data={redemptions}

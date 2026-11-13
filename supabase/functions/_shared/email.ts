@@ -131,7 +131,18 @@ export async function send(to: string, subject: string, html: string) {
 }
 
 /** Push notification to one user (token looked up server-side). Never throws. */
+/** Save to the in-app notifications list (the bell). Never throws. */
+export async function saveNotification(db: SupabaseClient, profileId: string, title: string, body: string, data: Record<string, unknown> = {}) {
+  try {
+    await db.from('notifications').insert({
+      profile_id: profileId, title: title.slice(0, 120), body: body.slice(0, 300),
+      url: typeof data.url === 'string' ? data.url : null, kind: typeof data.kind === 'string' ? data.kind : null,
+    });
+  } catch { /* non-critical */ }
+}
+
 export async function pushTo(db: SupabaseClient, profileId: string, title: string, body: string, data: Record<string, unknown> = {}) {
+  await saveNotification(db, profileId, title, body, data);
   try {
     const { data: p } = await db.from('profiles').select('push_token').eq('id', profileId).single();
     const to = p?.push_token;

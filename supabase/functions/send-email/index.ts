@@ -243,6 +243,7 @@ async function report(db: SupabaseClient, id: string) {
     ci ? `Event: ${esc(ci.title)} · ${esc(ci.business?.business_name ?? '')}` : 'General report (from Settings)',
     c ? `About creator: ${esc(c.name)} (${esc(c.handle)})` : '',
     `Type: ${esc(String(rep.report_type).replace(/_/g, ' '))}`,
+    rep.message_id ? 'Reported message (read the thread in Supabase → messages):' : '',
     `Details: ${esc(rep.details ?? '—')}`,
     'Reply to them directly at the email above.',
   ].filter(Boolean));
@@ -301,6 +302,53 @@ async function approved(db: SupabaseClient, id: string) {
         ]),
     }));
   }
+}
+
+/** Hourly: a message unread for 1+ hour gets one email per thread, so a
+ *  last-minute change (cancelled, new time) isn't missed. */
+async function messagesHourly(db: SupabaseClient): Promise<number> {
+  const now = Date.now();
+  const { data: msgs } = await db.from('messages')
+    .select('id, redemption_id, sender_id, body, created_at')
+    .is('read_at', null).is('emailed_at', null)
+    .lt('created_at', new Date(now - H).toISOString())
+    .gt('created_at', new Date(now - 48 * H).toISOString())
+    .order('created_at');
+  if (!msgs?.length) return 0;
+  const byThread: Record<string, any[]> = {};
+  for (const m of msgs as any[]) (byThread[`${m.redemption_id}:${m.sender_id}`] ??= []).push(m);
+  let sent = 0;
+  for (const list of Object.values(byThread)) {
+    const first = list[0];
+    await db.from('messages').update({ emailed_at: new Date().toISOString() }).in('id', list.map((m) => m.id));
+    const { data: r } = await db.from('redemptions')
+      .select('id, creator:creators(profile_id, tiktok_handle, instagram_handle), circuit:circuits(id, title, business:businesses(profile_id, business_name))')
+      .eq('id', first.redemption_id).single();
+    if (!r) continue;
+    const rr: any = r;
+    const creatorProfile = rr.creator?.profile_id;
+    const bizProfile = rr.circuit?.business?.profile_id;
+    const toProfile = first.sender_id === creatorProfile ? bizProfile : creatorProfile;
+    if (!toProfile) continue;
+    const to = await recipient(db, toProfile, true);
+    if (!to) continue;
+    const h = rr.creator?.tiktok_handle || rr.creator?.instagram_handle;
+    const fromName = first.sender_id === creatorProfile
+      ? (h ? `@${String(h).replace('@', '')}` : 'A creator')
+      : (rr.circuit?.business?.business_name ?? 'The business');
+    const n = list.length;
+    const last = list[list.length - 1];
+    await send(to.email, `New message from ${fromName} about ${rr.circuit?.title}`, layout({
+      tag: 'Message', preview: String(last.body).slice(0, 90),
+      body: hi(`Hi ${esc(to.first)},`) +
+        p(`${b(fromName)} sent you ${n === 1 ? 'a message' : `${n} messages`} about ${b(rr.circuit?.title)}:`) +
+        p(`<em>“${esc(String(last.body).slice(0, 400))}”</em>`) +
+        btn('Reply in the app', appLink(`thread/${rr.id}`)),
+      footer: await prefsFooter('You get this when a message about your event is unread for an hour.', toProfile),
+    }));
+    sent++;
+  }
+  return sent;
 }
 
 /** Hourly: interest pushes, deadline nudges, 72-hour releases, closing unpicked requests. */
@@ -551,7 +599,7 @@ serve(async (req) => {
       case 'problem': await problem(db, id); break;
       case 'report': await report(db, id); break;
       case 'approved': await approved(db, id); break;
-      case 'hourly': return json({ sent: (await hourly(db)) + (await manualHourly(db)) });
+      case 'hourly': return json({ sent: (await hourly(db)) + (await manualHourly(db)) + (await messagesHourly(db)) });
       case 'test': {
         // Preview: sends the welcome emails to the admin inbox with sample data.
         const r = { email: ADMIN_EMAIL, first: 'Kari' };

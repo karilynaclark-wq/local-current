@@ -1,6 +1,7 @@
 // Supabase Edge Function: send-push
 // POST { to: profileId | profileIds[], title, body, data? } with the user's JWT.
 // Push tokens are looked up here (the app never sees other users' tokens), and
+// Every alert is also saved to notifications (the in-app bell list).
 // can_notify() checks the sender is allowed to reach each recipient: admins →
 // anyone, anyone → admins, creator ↔ the business whose event they claimed.
 //
@@ -39,6 +40,19 @@ serve(async (req) => {
       for (const id of ids) {
         const { data: ok } = await db.rpc('can_notify', { p_from: sender, p_to: id });
         if (!ok) continue;
+        const url = typeof data?.url === 'string' ? data.url : null;
+        const kind = typeof data?.kind === 'string' ? data.kind : null;
+        // Messages: several in a row become one alert (update the unread one, no extra push).
+        if (kind === 'message' && url) {
+          const since = new Date(Date.now() - 10 * 60_000).toISOString();
+          const { data: recent } = await db.from('notifications').select('id')
+            .eq('profile_id', id).eq('url', url).is('read_at', null).gte('created_at', since).limit(1).maybeSingle();
+          if (recent) {
+            await db.from('notifications').update({ title: title.slice(0, 120), body: body.slice(0, 300), created_at: new Date().toISOString() }).eq('id', recent.id);
+            continue;
+          }
+        }
+        await db.from('notifications').insert({ profile_id: id, title: title.slice(0, 120), body: body.slice(0, 300), url, kind });
         const { data: p } = await db.from('profiles').select('push_token').eq('id', id).single();
         if (isExpo(p?.push_token)) targets.push(p!.push_token);
       }

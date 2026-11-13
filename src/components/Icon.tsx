@@ -10,7 +10,7 @@ type IconName =
   | 'search' | 'plus' | 'person' | 'clipboard' | 'pin' | 'link'
   | 'arrow' | 'back' | 'close' | 'gear' | 'check' | 'star' | 'star-fill'
   | 'bell' | 'eye' | 'film' | 'phone' | 'switch' | 'logout' | 'storefront'
-  | 'sparkles' | 'trophy' | 'mark' | 'chevron-down' | 'chevron-right' | 'cog' | 'calendar' | 'ticket' | 'alert';
+  | 'sparkles' | 'trophy' | 'mark' | 'chevron-down' | 'chevron-right' | 'cog' | 'calendar' | 'ticket' | 'alert' | 'chat' | 'send' | 'more';
 
 interface IconProps {
   name: IconName;
@@ -81,6 +81,12 @@ export function Icon({ name, size = 22, color = '#241D17', stroke = 2 }: IconPro
       return <Svg {...props}><Path d="M12 3.5 2.5 20h19L12 3.5zM12 10v4.5M12 17.5v.01" {...s}/></Svg>;
     case 'ticket':
       return <Svg {...props}><Path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7zM9 9v6M15 9v6" {...s}/></Svg>;
+    case 'chat':
+      return <Svg {...props}><Path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" {...s}/></Svg>;
+    case 'send':
+      return <Svg {...props}><Path d="M21 3 10 14M21 3l-7 18-4-7-7-4 18-7z" {...s}/></Svg>;
+    case 'more':
+      return <Svg {...props}><Circle cx="5" cy="12" r="1.2" fill={color}/><Circle cx="12" cy="12" r="1.2" fill={color}/><Circle cx="19" cy="12" r="1.2" fill={color}/></Svg>;
     case 'calendar':
       return <Svg {...props}><Path d="M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM16 3v4M8 3v4M3 11h18" {...s}/></Svg>;
     case 'cog':

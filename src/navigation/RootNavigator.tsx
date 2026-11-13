@@ -42,6 +42,9 @@ import PostSubmittedScreen from '../screens/creator/PostSubmittedScreen';
 import BusinessProfileScreen from '../screens/business/BusinessProfileScreen';
 import BusinessPublicProfileScreen from '../screens/business/BusinessPublicProfileScreen';
 
+import NotificationsScreen from '../screens/shared/NotificationsScreen';
+import MessageThreadScreen from '../screens/shared/MessageThreadScreen';
+import { parseAppLink } from '../lib/links';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 
 const Stack = createStackNavigator();
@@ -77,6 +80,8 @@ function BrowseStack() {
       <Stack.Screen name="SubmitPost" component={SubmitPostScreen} />
       <Stack.Screen name="PostSubmitted" component={PostSubmittedScreen} />
       <Stack.Screen name="BusinessPublicProfile" component={BusinessPublicProfileScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="MessageThread" component={MessageThreadScreen} />
     </Stack.Navigator>
   );
 }
@@ -102,6 +107,8 @@ function MyCircuitsStack() {
       <Stack.Screen name="CircuitDetail" component={CircuitDetailScreen} />
       <Stack.Screen name="CreatorProfile" component={CreatorProfileScreen} />
       <Stack.Screen name="CreatorPublicProfile" component={CreatorPublicProfileScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="MessageThread" component={MessageThreadScreen} />
     </Stack.Navigator>
   );
 }
@@ -114,6 +121,8 @@ function CreatorMyClaimsStack() {
       <Stack.Screen name="PostSubmitted" component={PostSubmittedScreen} />
       <Stack.Screen name="CircuitDetail" component={CircuitDetailScreen} />
       <Stack.Screen name="BusinessPublicProfile" component={BusinessPublicProfileScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="MessageThread" component={MessageThreadScreen} />
     </Stack.Navigator>
   );
 }
@@ -146,6 +155,8 @@ function BusinessProfileStack() {
       <Stack.Screen name="EditProfile" component={ProfileScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PlaceholderScreen} initialParams={{ title: 'Privacy Policy' }} />
       <Stack.Screen name="TermsOfService" component={PlaceholderScreen} initialParams={{ title: 'Terms of Service' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="MessageThread" component={MessageThreadScreen} />
     </Stack.Navigator>
   );
 }
@@ -256,18 +267,11 @@ function AdminStack() {
  *   localcurrent://event/<id>   creator: the event page (claim, code, review)
  *   localcurrent://manage/<id>  business: the event dashboard (claims, posts, ratings)
  *   localcurrent://post         business: post a new event
+ *   localcurrent://thread/<rid> event messages with the other side
  *   localcurrent://home         the home tab
  * Also accepts https://localcurrentapp.com/open?to=<path>.
  */
-function parseDeepLink(url: string): { kind: string; id?: string } | null {
-  try {
-    let path = url.replace(/^[a-z][\w.+-]*:\/\//i, '');
-    const to = url.match(/[?&]to=([^&]+)/);
-    if (/^https?:/.test(url)) { if (!to) return null; path = decodeURIComponent(to[1]); }
-    const [kind, id] = path.replace(/^\/+/, '').split(/[/?#]/);
-    return kind ? { kind, id } : null;
-  } catch { return null; }
-}
+const parseDeepLink = parseAppLink;
 
 async function openDeepLink(link: { kind: string; id?: string }, role: string) {
   if (!navRef.isReady()) return false;
@@ -276,6 +280,10 @@ async function openDeepLink(link: { kind: string; id?: string }, role: string) {
     if (!circuit) return true;
     if (role === 'business') navRef.navigate('MyCircuitsTab', { screen: 'BusinessCircuitDetail', params: { circuit } });
     else navRef.navigate('BrowseTab', { screen: 'CircuitDetail', params: { circuit } });
+    return true;
+  }
+  if (link.kind === 'thread' && link.id) {
+    navRef.navigate('MyCircuitsTab', { screen: 'MessageThread', params: { redemptionId: link.id } });
     return true;
   }
   if (link.kind === 'post' && role === 'business') { navRef.navigate('PostTab', { screen: 'PostIntro' }); return true; }

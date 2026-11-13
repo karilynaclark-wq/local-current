@@ -85,6 +85,19 @@ async function notifyBand(db: SupabaseClient, circuit: any, from: number, below:
       }
       return true;
     });
+  // The in-app bell list gets every matching creator, push or not.
+  {
+    const biz = circuit.business?.business_name || 'A local business';
+    const manualN = (circuit as any).approval_mode === 'manual';
+    const rows = matching.filter((c) => c.profile_id).map((c) => ({
+      profile_id: c.profile_id, title: 'Free tickets 🎟️', kind: 'new_event',
+      body: manualN ? `${biz} is inviting creators to "${circuit.title}". Request an invite.` : `${biz}: "${circuit.title}". Claim tickets before they're gone.`,
+      url: `localcurrent://event/${circuit.id}`,
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      try { await db.from('notifications').insert(rows.slice(i, i + 500)); } catch (e) { console.error('notifications', e); }
+    }
+  }
   const isToken = (t?: string | null) => !!t && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['));
   const tokens = matching.map((c) => c.profile?.push_token).filter(isToken) as string[];
 

@@ -12,6 +12,7 @@ import { Logo } from '../../components/Logo';
 import { StatusChip } from '../../components/UI';
 import { isEligibleForCircuit, creatorFollowersByPlatform, creatorFollowerCounts, PlatformFollowerMap, PlatformCountMap } from '../../lib/eligibility';
 import { getConnections } from '../../lib/socialConnect';
+import NotificationBell from '../../components/NotificationBell';
 import RequireConnectionGate from '../../components/RequireConnectionGate';
 
 const ZIP_TO_NEIGHBORHOOD: Record<string, string> = {
@@ -142,6 +143,7 @@ export default function CreatorHomeScreen() {
         )}
         <Logo size="sm" />
         <View style={{ flex: 1 }} />
+        <NotificationBell />
       </View>
       {error && (
         <TouchableOpacity style={styles.errorBanner} onPress={loadCreatorAndCircuits}>

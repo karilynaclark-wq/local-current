@@ -2,6 +2,7 @@
 // Approve / Pass, and the approval sheet where the business chooses how the
 // creator gets tickets (promo code, guest list, or email).
 
+import MessageLink from './MessageLink';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Image, Alert,
@@ -213,6 +214,7 @@ export default function ManualRequestsSection({ circuit, redemptions, onChanged 
                         onLongPress={() => { Clipboard.setStringAsync(email); Alert.alert('Copied', email); }}>{email}</Text>
                     )}
                   </View>
+                  <MessageLink redemptionId={r.id} variant="icon" />
                   {(() => {
                     const accepted = !!r.confirmed_at || r.status !== 'approved';
                     const needsTickets = r.delivery_method === 'email' && accepted && !r.tickets_sent_at;
