@@ -9,6 +9,7 @@ import { Icon, SocialIcon } from './Icon';
 export interface AiSummary {
   local_share: number | null;
   local_basis?: { chicago: number; elsewhere: number; unknown: number };
+  bio_location?: 'chicago' | 'elsewhere' | 'unknown';
   neighborhoods: string[];
   topics: string[];
 }
@@ -39,8 +40,11 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
 }) {
   const placed = (summary?.local_basis?.chicago ?? 0) + (summary?.local_basis?.elsewhere ?? 0);
   const share = summary?.local_share;
-  const showLocal = share != null && placed >= MIN_PLACED_POSTS;
-  const pct = showLocal ? Math.round(share! * 100) : 0;
+  // Only ever positive: posts ≥50% Chicago, or a Chicago bio. Otherwise show nothing.
+  const postsLocal = share != null && placed >= MIN_PLACED_POSTS && share >= LOCAL_THRESHOLD;
+  const bioLocal = summary?.bio_location === 'chicago';
+  const showLocal = postsLocal || bioLocal;
+  const pct = postsLocal ? Math.round(share! * 100) : 0;
   const [showWhy, setShowWhy] = useState(false);
 
   return (
@@ -66,17 +70,12 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
       {showLocal && (
         <TouchableOpacity style={styles.local} disabled={!isOwn} onPress={() => setShowWhy(true)} activeOpacity={0.7}>
           <Icon name="pin" size={13} color={C.muted} />
-          {share! >= LOCAL_THRESHOLD ? (
-            <Text style={styles.localText}>
-              <Text style={styles.localLead}>{isOwn ? "You're local: " : "They're local: "}</Text>
-              {pct}% of recent posts are about Chicago
-            </Text>
-          ) : (
-            <Text style={styles.localText}>
-              <Text style={styles.localLead}>{isOwn ? "Your posts aren't local: " : "Their posts aren't local: "}</Text>
-              {100 - pct}% of recent posts are not about Chicago
-            </Text>
-          )}
+          <Text style={styles.localText}>
+            <Text style={styles.localLead}>{isOwn ? "You're local: " : "They're local: "}</Text>
+            {postsLocal
+              ? `${pct}% of recent posts are about Chicago${bioLocal ? ' · Chicago in bio' : ''}`
+              : `${isOwn ? 'your' : 'their'} bio says Chicago`}
+          </Text>
           {isOwn && <Icon name="chevron-right" size={13} color={C.muted2} />}
         </TouchableOpacity>
       )}

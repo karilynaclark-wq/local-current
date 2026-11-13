@@ -34,6 +34,7 @@ export const INSTRUCTIONS = `You analyze a social media creator's recent posts f
 You get the creator's recent posts (platform, date, caption, views). Captions are all you can see, not the videos, so use only what the captions and hashtags actually say. Do not guess.
 
 Fields:
+- bio_location: where the creator's profile bio(s) say they are based: "chicago" if a bio names Chicago, a Chicago neighborhood or suburb, a Chicago area code or hashtag (e.g. "CHI", "312", "#chicago"); "elsewhere" if it names another city or region as home; "unknown" if there's no bio or it names no place.
 - post_locations: one entry per post, in the order given, labeling where the post takes place:
   "chicago" if the caption names Chicago, a Chicago neighborhood or suburb, a Chicago hashtag, or a venue, event, or show you know is in the Chicago area;
   "elsewhere" if it names another city, state, country, or trip;
@@ -44,11 +45,12 @@ Fields:
 const SUMMARY_SCHEMA = {
   type: 'object',
   properties: {
+    bio_location: { type: 'string', enum: ['chicago', 'elsewhere', 'unknown'] },
     post_locations: { type: 'array', items: { type: 'string', enum: ['chicago', 'elsewhere', 'unknown'] } },
     neighborhoods: { type: 'array', items: { type: 'string' } },
     topics: { type: 'array', items: { type: 'string', enum: [...TOPICS] } },
   },
-  required: ['post_locations', 'neighborhoods', 'topics'],
+  required: ['bio_location', 'post_locations', 'neighborhoods', 'topics'],
   additionalProperties: false,
 };
 
@@ -106,6 +108,7 @@ async function summarize(userContent: string, promptOverride?: string): Promise<
     summary: {
       local_share: known ? Math.round((chicago / known) * 100) / 100 : null,
       local_basis: { chicago, elsewhere: known - chicago, unknown: locs.length - known },
+      bio_location: raw.bio_location ?? 'unknown',
       neighborhoods: raw.neighborhoods ?? [],
       topics: raw.topics ?? [],
     },
@@ -172,7 +175,7 @@ serve(async (req) => {
     // ── Input: recent posts from connected accounts ──
     const { data: conns } = await db
       .from('social_connections')
-      .select('platform, username, recent_posts')
+      .select('platform, username, recent_posts, bio')
       .eq('profile_id', creator.profile_id)
       .eq('connection_type', 'oauth');
     const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
@@ -185,7 +188,8 @@ serve(async (req) => {
     if (!lines.length) return json({ error: 'No connected posts to summarize' }, 422);
 
     const handles = (conns ?? []).map((c: any) => `${c.platform}: @${c.username}`).join(', ');
-    const userContent = `Creator accounts: ${handles}\n\nRecent posts (${lines.length}):\n${lines.join('\n')}`;
+    const bios = (conns ?? []).filter((c: any) => c.bio?.trim()).map((c: any) => `${c.platform}: ${String(c.bio).replace(/\s+/g, ' ').trim()}`);
+    const userContent = `Creator accounts: ${handles}\n\nBios:\n${bios.length ? bios.join('\n') : '(none)'}\n\nRecent posts (${lines.length}):\n${lines.join('\n')}`;
 
     const r = await summarize(userContent, promptOverride);
     if ('error' in r) return json(r, 502);
