@@ -283,7 +283,7 @@ async function approved(db: SupabaseClient, id: string) {
         ? p(`You're on the guest list under ${b(c.profile?.full_name || c.name)}${n > 1 ? ` (+${n - 1})` : ''}. Show your ID at the door.`)
         : p(`Once you tap Accept, ${esc(bizName)} will email your ${ticketWord(n)} to ${b(r?.email ?? 'your email')}. Keep an eye on your inbox (and spam folder).`);
 
-  const accept = red.delivery_method === 'code' ? 'Use your code, then tap "I got my tickets"' : 'Tap "Accept invite"';
+  const accept = red.delivery_method === 'code' ? 'Use your code, then tap "I got my tickets with the code"' : 'Tap "Accept invite"';
   await pushTo(db, c.profile_id, "You're invited! 🎟️", `${bizName} invited you to ${ci.title}. ${accept} by ${by} to keep your spot.`,
     { url: `localcurrent://event/${ci.id}` });
   if (r) {
@@ -293,7 +293,7 @@ async function approved(db: SupabaseClient, id: string) {
         p(`${b(bizName)} invited you to ${b(ci.title)}.`) +
         (red.going_on ? p(`You're going ${b(new Date(`${red.going_on}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}.`) : '') +
         how +
-        p(`<strong>${red.delivery_method === 'code' ? 'Get your tickets with the code, then tap "I got my tickets"' : 'Tap "Accept invite"'} in the app by ${esc(by)}</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
+        p(`<strong>${red.delivery_method === 'code' ? 'Get your tickets with the code, then tap "I got my tickets with the code"' : 'Tap "Accept invite"'} in the app by ${esc(by)}</strong> so ${esc(bizName)} knows you're coming. If we don't hear from you, we'll release your tickets to another creator.`) +
         btn(red.delivery_method === 'code' ? 'Open in the app' : 'Accept invite', appLink(`event/${ci.id}`)) +
         p('<strong>For your post</strong>') +
         ul([
@@ -434,7 +434,7 @@ async function manualHourly(db: SupabaseClient): Promise<number> {
       sent++;
     } else if (left <= 24 && (due - new Date(r.responded_at).getTime()) / H > 30 && (await once(db, `cf48:${r.id}`))) {
       await pushTo(db, c.profile_id, r.delivery_method === 'code' ? 'Got your tickets yet?' : 'Accept your invite',
-        `${r.delivery_method === 'code' ? 'Use your code and tap "I got my tickets"' : 'Tap "Accept invite"'} for ${r.circuit.title} by ${fmtWhen(new Date(due))} or your tickets go to another creator.`,
+        `${r.delivery_method === 'code' ? 'Use your code and tap "I got my tickets with the code"' : 'Tap "Accept invite"'} for ${r.circuit.title} by ${fmtWhen(new Date(due))} or your tickets go to another creator.`,
         { url: `localcurrent://event/${r.circuit.id}` });
       sent++;
     }

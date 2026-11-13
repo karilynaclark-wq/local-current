@@ -731,7 +731,7 @@ export default function CircuitDetailScreen() {
             {!confirmedAt ? (
               <Text style={[styles.stepNote, { color: '#92400E' }]}>
                 {deliveryMethod === 'code'
-                  ? `Use the code to get your tickets, then tap "I got my tickets" by ${confirmByStr} to keep your spot.`
+                  ? `Use the code to get your tickets, then tap "I got my tickets with the code" by ${confirmByStr} to keep your spot.`
                   : `Tap "Accept invite" by ${confirmByStr} to keep your spot.`} Otherwise your tickets go to another creator.
               </Text>
             ) : (
