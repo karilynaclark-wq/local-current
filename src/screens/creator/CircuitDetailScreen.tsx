@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, ScrollView, Alert, Modal, Linking, TextInput,
 } from 'react-native';
@@ -152,6 +153,7 @@ export default function CircuitDetailScreen() {
   const [hasClaimed, setHasClaimed] = useState(false);
   const [redemptionStatus, setRedemptionStatus] = useState<string | null>(null);
   const [redemptionId, setRedemptionId] = useState<string | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [hasPost, setHasPost] = useState(false);
   const [myReview, setMyReview] = useState<{ rating: number | null; note: string | null; anonymous: boolean | null } | null>(null);
   const [showRate, setShowRate] = useState(false);
@@ -195,17 +197,19 @@ export default function CircuitDetailScreen() {
   }, [voucherExpired]);
 
   function fetchRedemptionStatus() {
+    const done = () => setStatusLoaded(true);
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+      if (!user) return done();
       supabase.from('creators').select('id').eq('profile_id', user.id).single()
         .then(({ data: creator }) => {
-          if (!creator) return;
+          if (!creator) return done();
           supabase.from('redemptions')
             .select('id, status, checked_in_at, expires_at, problem_reported_at, access_details, code, requested_at, claimed_at, delivery_method, confirmed_at, responded_at, going_on, tickets_sent_at, creator_rating, creator_review, creator_review_anonymous')
             .eq('circuit_id', circuit.id)
             .eq('creator_id', creator.id)
             .limit(1).single()
             .then(({ data: existing }) => {
+              done();
               if (existing) {
                 setHasClaimed(true);
                 setRedemptionStatus(existing.status ?? null);
@@ -511,6 +515,20 @@ export default function CircuitDetailScreen() {
   const requestExpiresAt = requestedAt
     ? new Date(new Date(requestedAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
     : null;
+
+  // Wait for the creator's ticket status so the page doesn't flash "Request an invite".
+  if (!statusLoaded) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.scroll}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+            <Icon name="back" size={20} color={C.accent} />
+          </TouchableOpacity>
+        </View>
+        <ActivityIndicator color={C.accent} style={{ marginTop: 80 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
