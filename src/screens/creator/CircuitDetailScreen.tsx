@@ -198,6 +198,7 @@ export default function CircuitDetailScreen() {
 
   function fetchRedemptionStatus() {
     const done = () => setStatusLoaded(true);
+    setTimeout(done, 8000); // never leave the spinner up if the network hangs
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return done();
       supabase.from('creators').select('id').eq('profile_id', user.id).single()
