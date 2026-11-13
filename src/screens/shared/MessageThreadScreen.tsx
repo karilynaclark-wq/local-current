@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeAreaView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Pressable,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Pressable, ScrollView,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
@@ -204,15 +204,14 @@ export default function MessageThreadScreen() {
           ) : (
             <>
               {isBusiness && msgs.length === 0 && (
-                <FlatList
-                  horizontal data={TEMPLATES} keyExtractor={t => t} showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={st.templates}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity style={st.template} onPress={() => setText(item)}>
-                      <Text style={st.templateText} numberOfLines={1}>{item}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}
+                  contentContainerStyle={st.templates} keyboardShouldPersistTaps="handled">
+                  {TEMPLATES.map(t => (
+                    <TouchableOpacity key={t} style={st.template} onPress={() => setText(t)}>
+                      <Text style={st.templateText} numberOfLines={1}>{t}</Text>
                     </TouchableOpacity>
-                  )}
-                />
+                  ))}
+                </ScrollView>
               )}
               <View style={st.composer}>
                 <TextInput
@@ -262,8 +261,8 @@ const st = StyleSheet.create({
   theirs: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderBottomLeftRadius: 6 },
   bubbleText: { fontFamily: F.body, fontSize: 15, lineHeight: 21, color: C.ink },
   bubbleTime: { fontFamily: F.body, fontSize: 11, color: C.muted2, marginTop: 3 },
-  templates: { paddingHorizontal: 12, paddingBottom: 8, gap: 8 },
-  template: { borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.card, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12, maxWidth: 260 },
+  templates: { paddingHorizontal: 12, paddingBottom: 8, gap: 8, alignItems: 'center' },
+  template: { borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.card, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12, maxWidth: 260, alignSelf: 'center' },
   templateText: { fontFamily: F.body, fontSize: 13, color: C.ink },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.paper },
   input: { flex: 1, fontFamily: F.body, fontSize: 15, color: C.ink, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line2, borderRadius: 20, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, maxHeight: 120 },
