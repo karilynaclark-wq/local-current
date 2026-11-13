@@ -40,10 +40,11 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
 }) {
   const placed = (summary?.local_basis?.chicago ?? 0) + (summary?.local_basis?.elsewhere ?? 0);
   const share = summary?.local_share;
-  // Only ever positive: posts ≥50% Chicago, or a Chicago bio. Otherwise show nothing.
+  // Only ever positive: shown when ≥50% of placeable posts are Chicago. Otherwise
+  // (under 50%, too few posts, or only the bio says Chicago) we can't verify: show nothing.
   const postsLocal = share != null && placed >= MIN_PLACED_POSTS && share >= LOCAL_THRESHOLD;
   const bioLocal = summary?.bio_location === 'chicago';
-  const showLocal = postsLocal || bioLocal;
+  const showLocal = postsLocal;
   const pct = postsLocal ? Math.round(share! * 100) : 0;
   const [showWhy, setShowWhy] = useState(false);
 
@@ -72,9 +73,7 @@ export default function CreatorInsights({ counts, summary, isOwn = false }: {
           <Icon name="pin" size={13} color={C.muted} />
           <Text style={styles.localText}>
             <Text style={styles.localLead}>{isOwn ? "You're local: " : "They're local: "}</Text>
-            {postsLocal
-              ? `${pct}% of recent posts are about Chicago${bioLocal ? ' · Chicago in bio' : ''}`
-              : `${isOwn ? 'your' : 'their'} bio says Chicago`}
+            {`${pct}% of recent posts are about Chicago${bioLocal ? ' · Chicago in bio' : ''}`}
           </Text>
           {isOwn && <Icon name="chevron-right" size={13} color={C.muted2} />}
         </TouchableOpacity>
